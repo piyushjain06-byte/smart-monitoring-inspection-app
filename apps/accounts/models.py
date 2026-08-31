@@ -32,6 +32,13 @@ class User(AbstractUser):
     state = models.CharField(max_length=100, blank=True)
     district = models.CharField(max_length=100, blank=True)
 
+    # Base location for field officers (inspectors/PMU) — used by the
+    # auto-assignment engine to estimate travel distance to an institute.
+    # Plain floats for the same reason as Institute.latitude/longitude
+    # (see apps/registry/models.py) — swap to PostGIS PointField later.
+    base_latitude = models.FloatField(null=True, blank=True, help_text="Officer's home-base latitude")
+    base_longitude = models.FloatField(null=True, blank=True, help_text="Officer's home-base longitude")
+
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.get_role_display()})"
 

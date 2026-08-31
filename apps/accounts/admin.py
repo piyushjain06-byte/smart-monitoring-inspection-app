@@ -19,6 +19,10 @@ class UserAdmin(BaseUserAdmin):
         ("Platform Role & Scope", {
             "fields": ("role", "phone_number", "preferred_language", "state", "district"),
         }),
+        ("Field Officer Base Location", {
+            "fields": ("base_latitude", "base_longitude"),
+            "description": "Used by the auto-assignment engine to estimate travel distance. Only relevant for Inspection Officer / PMU Team roles.",
+        }),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         ("Platform Role & Scope", {
