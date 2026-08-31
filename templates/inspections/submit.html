@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Submit Inspection</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:16px}
+    label{display:block;margin-top:8px}
+    .field{margin-bottom:12px}
+    button{padding:8px 12px}
+  </style>
+</head>
+<body>
+  <h1>Inspection Submission</h1>
+
+  <div>
+    <label>Assignment</label>
+    <select id="assignmentSelect"></select>
+  </div>
+
+  <div>
+    <label>Template</label>
+    <select id="templateSelect"></select>
+  </div>
+
+  <form id="inspectionForm">
+    <div id="fieldsContainer"></div>
+
+    <label>Evidence photos/videos (allow camera capture)</label>
+    <input type="file" id="evidence" name="evidence" multiple accept="image/*,video/*" capture>
+    <div id="preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+
+    <div style="margin-top:12px">
+      <button type="button" id="locBtn">Get Location & Submit</button>
+    </div>
+
+    <div id="progressWrapper" style="display:none;margin-top:12px">
+      <label>Upload progress</label>
+      <progress id="uploadProgress" value="0" max="100" style="width:100%"></progress>
+    </div>
+  </form>
+
+  <div id="status" aria-live="polite" style="margin-top:12px"></div>
+
+  <script>
+    async function fetchAssignments(){
+      const res = await fetch('/api/inspections/reports/assignments/');
+      if(!res.ok) return [];
+      return res.json();
+    }
+
+    async function fetchTemplates(){
+      const res = await fetch('/api/inspections/templates/');
+      return res.ok ? res.json() : [];
+    }
+
+    function renderFields(template){
+      const container = document.getElementById('fieldsContainer');
+      container.innerHTML = '';
+      template.fields.forEach(f => {
+        const div = document.createElement('div'); div.className='field';
+        const label = document.createElement('label'); label.textContent = f.label;
+        div.appendChild(label);
+        let input;
+        if(f.field_type === 'YES_NO'){
+          input = document.createElement('select');
+          input.innerHTML = '<option value="">--</option><option value="yes">Yes</option><option value="no">No</option>';
+        } else if(f.field_type === 'RATING'){
+          input = document.createElement('input'); input.type='number'; input.min=1; input.max=5;
+        } else if(f.field_type === 'TEXTAREA'){
+          input = document.createElement('textarea'); input.rows=3;
+        } else {
+          input = document.createElement('input'); input.type='text';
+        }
+        input.name = 'field_'+f.id;
+        div.appendChild(input);
+        container.appendChild(div);
+      });
+    }
+
+    async function init(){
+      const [assignments, templates] = await Promise.all([fetchAssignments(), fetchTemplates()]);
+      const aSel = document.getElementById('assignmentSelect');
+      assignments.forEach(a => { const opt=document.createElement('option'); opt.value=a.id; opt.textContent=`${a.institute} — ${a.template} (due ${a.due_date})`; aSel.appendChild(opt)});
+
+      const tSel = document.getElementById('templateSelect');
+      templates.forEach(t => { const opt=document.createElement('option'); opt.value=t.id; opt.textContent=t.name; tSel.appendChild(opt)});
+      tSel.addEventListener('change', ()=>{
+        const id = parseInt(tSel.value);
+        const tmpl = templates.find(x=>x.id===id);
+        if(tmpl) renderFields(tmpl);
+      });
+      if(templates.length) { tSel.value = templates[0].id; renderFields(templates[0]); }
+    }
+
+    function setStatus(msg, error=false){
+      const s = document.getElementById('status'); s.textContent = msg; s.style.color = error? 'red':'black';
+    }
+
+    async function submitWithLocation(){
+      setStatus('Getting location...');
+      if(!navigator.geolocation){ setStatus('Geolocation not supported', true); return; }
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        setStatus('Location obtained. Uploading...');
+        await doSubmit(pos.coords.latitude, pos.coords.longitude);
+      }, err=>{ setStatus('Could not get location: '+err.message, true); });
+    }
+
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    }
+
+    async function doSubmit(lat, lon){
+      const form = document.getElementById('inspectionForm');
+      const fd = new FormData();
+      fd.append('assignment', document.getElementById('assignmentSelect').value);
+      fd.append('submitted_latitude', lat);
+      fd.append('submitted_longitude', lon);
+      fd.append('answers', JSON.stringify(collectAnswers()));
+      const files = document.getElementById('evidence').files;
+      for(let i=0;i<files.length;i++){ fd.append('evidence', files[i]); }
+
+      const csrftoken = getCookie('csrftoken');
+      // Use XHR to show upload progress
+      return new Promise((resolve)=>{
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/inspections/reports/');
+        xhr.withCredentials = true;
+        xhr.setRequestHeader('X-CSRFToken', csrftoken);
+
+        xhr.upload.addEventListener('progress', (e)=>{
+          if(e.lengthComputable){
+            const percent = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('progressWrapper').style.display = 'block';
+            document.getElementById('uploadProgress').value = percent;
+            setStatus('Uploading... ' + percent + '%');
+          }
+        });
+
+        xhr.addEventListener('load', ()=>{
+          if(xhr.status >=200 && xhr.status < 300){ setStatus('Submitted successfully'); resolve(true);} else { setStatus('Submit failed: '+xhr.responseText, true); resolve(false); }
+        });
+
+        xhr.addEventListener('error', ()=>{ setStatus('Upload error', true); resolve(false); });
+
+        xhr.send(fd);
+      });
+    }
+
+    function collectAnswers(){
+      const ans = {};
+      document.querySelectorAll('#fieldsContainer [name]').forEach(el=>{
+        const id = el.name.replace('field_',''); ans[id]=el.value;
+      });
+      return ans;
+    }
+
+    document.getElementById('locBtn').addEventListener('click', submitWithLocation);
+    document.getElementById('evidence').addEventListener('change', (ev)=>{
+      const preview = document.getElementById('preview'); preview.innerHTML='';
+      const files = ev.target.files;
+      Array.from(files).forEach(file=>{
+        if(file.type.startsWith('image/')){
+          const reader = new FileReader();
+          reader.onload = (e)=>{
+            const img = document.createElement('img'); img.src = e.target.result; img.style.maxWidth='120px'; img.style.maxHeight='90px'; img.style.objectFit='cover'; img.style.border='1px solid #ccc'; img.style.padding='2px';
+            preview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          const el = document.createElement('div'); el.textContent = file.name; el.style.padding='6px'; el.style.border='1px solid #ccc'; preview.appendChild(el);
+        }
+      });
+    });
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>

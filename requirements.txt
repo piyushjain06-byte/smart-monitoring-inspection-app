@@ -4,6 +4,9 @@ django-environ==0.11.2
 django-cors-headers==4.4.0
 django-simple-history==3.7.0
 Pillow==10.4.0
+WeasyPrint==59.0
+boto3==1.28.0
+django-storages==1.14.1
 
 # --- Added back in later phases, once we're ready for them ---
 # psycopg2-binary       # Phase: switching from SQLite to Postgres+PostGIS
