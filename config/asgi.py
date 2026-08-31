@@ -1,19 +1,9 @@
 import os
 
-from channels.auth import AuthMiddlewareStack
-from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
-django_asgi_app = get_asgi_application()
-
-# Import after Django app is ready, so app-level routing modules can use ORM etc.
-from apps.core.routing import websocket_urlpatterns  # noqa: E402
-
-application = ProtocolTypeRouter(
-    {
-        "http": django_asgi_app,
-        "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
-    }
-)
+# Plain Django ASGI app for now — no Channels/WebSockets yet (that's Phase 4.5,
+# and needs Redis running). This file will grow a websocket router at that point.
+application = get_asgi_application()

@@ -1,15 +1,12 @@
 Django==5.0.7
 djangorestframework==3.15.2
-djangorestframework-gis==1.0
 django-environ==0.11.2
-psycopg2-binary==2.9.9
 django-cors-headers==4.4.0
-channels==4.1.0
-channels-redis==4.2.0
-celery==5.4.0
-redis==5.0.7
-django-celery-beat==2.6.0
-Pillow==10.4.0
 django-simple-history==3.7.0
-gunicorn==22.0.0
-daphne==4.1.2
+Pillow==10.4.0
+
+# --- Added back in later phases, once we're ready for them ---
+# psycopg2-binary       # Phase: switching from SQLite to Postgres+PostGIS
+# djangorestframework-gis
+# channels + channels-redis   # Phase 4.5: real-time WebSocket dashboard (needs Redis)
+# celery + redis + django-celery-beat   # Phase 4.7: scheduled random-assignment jobs (needs Redis)

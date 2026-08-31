@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.contrib.gis.admin import GISModelAdmin
 
 from .models import Beneficiary, Institute, NGO, Project, Scheme, Staff
 
@@ -17,13 +16,13 @@ class NGOAdmin(admin.ModelAdmin):
 
 
 @admin.register(Institute)
-class InstituteAdmin(GISModelAdmin):
+class InstituteAdmin(admin.ModelAdmin):
     """
-    GISModelAdmin gives you a clickable map widget for `location` right in
-    /admin/ — the fastest way to seed realistic demo geo-data locally,
-    no separate map-picker frontend needed yet.
+    Plain admin for now — just type latitude/longitude in as numbers
+    (e.g. from Google Maps: right-click a spot -> the numbers shown are lat, lon).
+    A map-click widget comes back once we're on PostGIS (GISModelAdmin).
     """
-    list_display = ("name", "ngo", "scheme", "district", "state", "is_active")
+    list_display = ("name", "ngo", "scheme", "district", "state", "latitude", "longitude", "is_active")
     list_filter = ("state", "district", "is_active", "scheme")
     search_fields = ("name", "district", "state")
 

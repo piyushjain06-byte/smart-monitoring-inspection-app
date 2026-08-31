@@ -22,18 +22,14 @@ class NGOViewSet(viewsets.ModelViewSet):
 
 
 class InstituteViewSet(viewsets.ModelViewSet):
-    """
-    Powers the dashboard map view (Part 4.5): GET /api/registry/institutes/
-    returns GeoJSON `FeatureCollection`, ready for a Leaflet `L.geoJSON()` call.
-    """
+    """Powers the dashboard map view (Part 4.5) once we build it."""
     queryset = Institute.objects.select_related("ngo", "scheme").all()
     serializer_class = InstituteSerializer
 
     def get_queryset(self):
         """
         Role-based scoping (Part 4.1 / Part 10 — a district authority should
-        never see another district's data). This is intentionally simple for
-        now; tighten further once the permission classes per-role are built.
+        never see another district's data). Simple version for now.
         """
         qs = super().get_queryset()
         user = self.request.user

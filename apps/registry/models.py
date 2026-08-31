@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.contrib.gis.db import models as gis_models
 from django.db import models
 from simple_history.models import HistoricalRecords  # Part 5.7 — immutable audit log
 
@@ -39,6 +38,12 @@ class Institute(models.Model):
     """
     A physical location (project site) run by an NGO under a Scheme.
     This is the entity that gets CCTV cameras, random VC calls, and inspections.
+
+    LOCAL DEV MODE: location is plain latitude/longitude floats (no PostGIS
+    needed). Geofence checks use apps.core.geo.is_within_radius(). When we
+    switch to Postgres+PostGIS later, these two fields can be migrated into
+    a single PointField without changing how other apps read the coordinates
+    (just wrap institute.latitude/institute.longitude in a small property).
     """
     scheme = models.ForeignKey(Scheme, on_delete=models.CASCADE, related_name="institutes")
     ngo = models.ForeignKey(NGO, on_delete=models.CASCADE, related_name="institutes")
@@ -47,9 +52,8 @@ class Institute(models.Model):
     state = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
 
-    # Official registered location — every inspection/evidence geo-tag is validated
-    # against this point (see apps/core/geo.py -> is_within_radius). SRID 4326 = WGS84 lat/lon.
-    location = gis_models.PointField(srid=4326, geography=True, null=True, blank=True)
+    latitude = models.FloatField(null=True, blank=True, help_text="e.g. 19.0760")
+    longitude = models.FloatField(null=True, blank=True, help_text="e.g. 72.8777")
 
     incharge = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

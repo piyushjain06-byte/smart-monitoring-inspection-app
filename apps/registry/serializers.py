@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from .models import Beneficiary, Institute, NGO, Project, Scheme, Staff
 
@@ -19,21 +18,21 @@ class NGOSerializer(serializers.ModelSerializer):
         ]
 
 
-class InstituteSerializer(GeoFeatureModelSerializer):
+class InstituteSerializer(serializers.ModelSerializer):
     """
-    GeoJSON-flavoured serializer so the `location` field can be dropped
-    straight into a Leaflet/Mapbox map on the dashboard (Part 4.5) with
-    zero extra transformation on the frontend.
+    Plain lat/lng fields for now. Once we're on PostGIS, this can switch to
+    GeoFeatureModelSerializer for ready-made GeoJSON — the frontend map code
+    will barely need to change since it'll just read different field names.
     """
     ngo_name = serializers.CharField(source="ngo.name", read_only=True)
     scheme_name = serializers.CharField(source="scheme.name", read_only=True)
 
     class Meta:
         model = Institute
-        geo_field = "location"
         fields = [
             "id", "name", "ngo", "ngo_name", "scheme", "scheme_name",
-            "address", "state", "district", "incharge", "is_active",
+            "address", "state", "district", "latitude", "longitude",
+            "incharge", "is_active",
         ]
 
 

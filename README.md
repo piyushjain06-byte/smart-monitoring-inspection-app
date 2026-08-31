@@ -1,79 +1,90 @@
 # Smart Real-Time Monitoring & Inspection Platform (SIH #26095)
 
-Phase 0–1 scaffold: Django + DRF + PostGIS + Channels + Celery, fully containerized,
-runs entirely on localhost via Docker Compose.
+**Current mode: plain Python + SQLite, no Docker.** This gets you running in
+minutes on Windows without touching BIOS/virtualization settings. The
+`docker-later/` folder has the Postgres+Redis+Celery setup for when you want
+it — nothing here needs it yet.
 
-## What's included so far
+## What's included so far (Phase 0–1 — nothing more)
 
-- `config/` — Django project settings, Celery app, ASGI (Channels) setup, root URLs
-- `apps/accounts/` — custom `User` model with role-based access control (Part 4.1)
-- `apps/registry/` — Scheme / NGO / Institute / Project / Staff / Beneficiary models with
-  geo-location (PostGIS `PointField`) + full CRUD API + GeoJSON output for map views (Part 4.2)
-- `apps/core/` — shared helpers: geofence distance check, central websocket routing hub
-- `docker-compose.yml` — Postgres+PostGIS, Redis, Django (Daphne/ASGI), Celery worker, Celery beat
-  (MinIO / MediaMTX / Jitsi services are stubbed in as comments for Phase 4)
+- `config/` — Django settings, root URLs (Channels/Celery wiring present but
+  commented out until later phases)
+- `apps/accounts/` — custom `User` model with role-based access control
+- `apps/registry/` — Scheme / NGO / Institute / Project / Staff / Beneficiary
+  models (Institute has plain latitude/longitude fields for now), full CRUD API
+- `apps/core/` — a `geo.py` helper with a Haversine distance check, ready for
+  Phase: geofence validation on inspections
 
 ## Prerequisites
 
-- Docker Desktop installed and running (that's genuinely the only thing you need locally —
-  Python/Postgres/Redis all run inside containers, nothing to install on your host machine).
+- **Python 3.11 or 3.12** installed. Check with:
+  ```bash
+  python --version
+  ```
+  If that fails, download from https://www.python.org/downloads/ — during
+  install, tick **"Add python.exe to PATH"**.
 
 ## First-time setup
 
+From inside the `Smart-Monitoring-App` folder, in Git Bash:
+
 ```bash
-# 1. Copy the environment template
+# 1. Create a virtual environment (an isolated Python install just for this project)
+python -m venv venv
+
+# 2. Activate it (Git Bash on Windows)
+source venv/Scripts/activate
+
+# You should now see (venv) at the start of your terminal prompt.
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Copy the environment file
 cp .env.example .env
 
-# 2. Build and start everything
-docker compose up --build
-```
+# 5. Create the database tables (SQLite — this just creates a db.sqlite3 file, no server)
+python manage.py migrate
 
-Leave that terminal running. In a **second terminal**, once the containers are up:
+# 6. Create your first superuser (your SUPER_ADMIN / DoSJE HQ login)
+python manage.py createsuperuser
 
-```bash
-# 3. Run migrations (creates all the database tables)
-docker compose exec web python manage.py migrate
-
-# 4. Create your first superuser (this becomes your SUPER_ADMIN / DoSJE HQ login)
-docker compose exec web python manage.py createsuperuser
+# 7. Run the server
+python manage.py runserver
 ```
 
 ## Verify it works
 
-1. Open **http://localhost:8000/admin/** — log in with the superuser you just created.
-   You should see `Users`, `Schemes`, `NGOs`, `Institutes`, `Projects`, `Staff`, `Beneficiaries`
-   all manageable right there — this is your instant CRUD UI for seeding demo data.
-2. In `/admin/`, open a **User** you created, confirm the "Platform Role & Scope" section shows
-   role/phone/state/district fields.
-3. In `/admin/`, create one `Scheme`, one `NGO`, then one `Institute` — click on the map widget
-   on the Institute's `location` field to drop a pin (e.g. somewhere in your city) and save.
-4. While still logged into `/admin/` in your browser, open a new tab to
-   **http://localhost:8000/api/accounts/me/** — you should see your own profile as JSON.
-5. Open **http://localhost:8000/api/registry/institutes/** — you should see the Institute you
-   created, returned as GeoJSON with the coordinates you picked. This confirms the full chain
-   (model → PostGIS → serializer → API) is working end-to-end.
+1. Open **http://127.0.0.1:8000/admin/** — log in with the superuser you just created.
+2. Confirm you can see `Users`, `Schemes`, `NGOs`, `Institutes`, `Projects`,
+   `Staff`, `Beneficiaries` all manageable there.
+3. Create one `Scheme`, one `NGO`, then one `Institute` — for latitude/longitude,
+   go to Google Maps, right-click any point, and the top of the menu shows the
+   coordinates (e.g. `19.0760, 72.8777`) — copy those into the two fields.
+4. While logged into `/admin/`, open a new tab to
+   **http://127.0.0.1:8000/api/accounts/me/** — you should see your profile as JSON.
+5. Open **http://127.0.0.1:8000/api/registry/institutes/** — you should see the
+   Institute you created, with its lat/lng, as JSON. This confirms the whole
+   chain (model → DB → serializer → API) works end-to-end.
+
+## Every time you come back to work on this
+
+```bash
+source venv/Scripts/activate    # re-activate the virtual environment
+python manage.py runserver
+```
 
 ## Everyday commands
 
 ```bash
-docker compose up              # start everything (add --build after changing requirements.txt)
-docker compose down            # stop everything
-docker compose exec web python manage.py makemigrations   # after changing any models.py
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py shell             # Django shell inside the container
-docker compose logs -f web     # tail the Django server logs
+python manage.py makemigrations   # after changing any models.py
+python manage.py migrate
+python manage.py shell            # Django shell for quick testing
+python manage.py createsuperuser  # if you need another admin login
 ```
 
-## What's next (see the full implementation plan doc for all phases)
+## What's next
 
-- **Phase 2**: Inspection module — dynamic checklist templates, web-based photo/GPS evidence
-  capture, geofence validation, PDF report generation.
-- **Phase 3**: Random Inspection Assignment Engine — weighted lottery + Celery periodic task +
-  audit log.
-- **Phase 4**: CCTV (MediaMTX) + Random VC (Jitsi) — uncomment the relevant blocks in
-  `docker-compose.yml` when you get here.
-- **Phase 5**: AI microservice (FastAPI) for anomaly/attendance analytics.
-- **Phase 6**: Additional features — grievances, public transparency portal, fund tracking, etc.
-
-Ask for any of these next and we'll build them the same way: models → admin → serializers →
-views → urls → a README section telling you exactly how to verify it.
+Only after you confirm the above works, we'll build **Phase 2: the inspection
+module** (checklist forms, browser-based photo/GPS evidence capture, geofence
+validation) — one small piece at a time, same as this one.
