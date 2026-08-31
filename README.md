@@ -85,6 +85,8 @@ python manage.py createsuperuser  # if you need another admin login
 
 ## What's next
 
-Only after you confirm the above works, we'll build **Phase 2: the inspection
-module** (checklist forms, browser-based photo/GPS evidence capture, geofence
-validation) — one small piece at a time, same as this one.
+Phase 2 (inspection module) is done — see `PHASE2_COMPLETION.md`.
+Phase 3 (React government dashboard) is done — see `PHASE3_COMPLETION.md` for
+how to run the `frontend/` app alongside this backend.
+
+Next up: attendance module + the AI risk engine — one piece at a time, same as before.
