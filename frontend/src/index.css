@@ -1,0 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0f2438;      /* deep navy - primary text / sidebar */
+  --ink-soft: #33506b;
+  --accent: #1d6fa5;   /* civic blue - primary action */
+  --paper: #f6f7f9;    /* page background */
+  --line: #dde2e8;     /* hairline borders */
+  --ok: #157a4a;       /* verified / submitted */
+  --warn: #b5790a;     /* pending */
+  --danger: #b23b3b;   /* overdue */
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Leaflet needs an explicit height on its container or it renders collapsed */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: "IBM Plex Sans", sans-serif;
+}
