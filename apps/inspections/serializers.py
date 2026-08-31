@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.registry.models import Institute
+
 from .models import (
     Evidence,
     InspectionAssignment,
@@ -39,6 +41,30 @@ class InspectionReportSerializer(serializers.ModelSerializer):
             "id", "assignment", "submitted_at", "submitted_latitude", "submitted_longitude",
             "location_verified", "answers", "overall_score", "notes", "evidence_items",
         ]
+
+
+class InspectionAssignmentSerializer(serializers.ModelSerializer):
+    """Read-only summary used on the government dashboard's institute detail view."""
+    officer_name = serializers.SerializerMethodField()
+    template_name = serializers.CharField(source="template.name", read_only=True)
+
+    class Meta:
+        model = InspectionAssignment
+        fields = [
+            "id", "institute", "officer", "officer_name", "template", "template_name",
+            "assigned_at", "due_date", "status",
+        ]
+
+    def get_officer_name(self, obj):
+        return obj.officer.get_full_name() or obj.officer.username
+
+
+class AutoAssignRequestSerializer(serializers.Serializer):
+    institute = serializers.PrimaryKeyRelatedField(queryset=Institute.objects.all())
+    template = serializers.PrimaryKeyRelatedField(
+        queryset=InspectionTemplate.objects.filter(is_active=True), required=False
+    )
+    due_in_days = serializers.IntegerField(required=False, min_value=1, default=7)
 
 
 class InspectionReportCreateSerializer(serializers.Serializer):

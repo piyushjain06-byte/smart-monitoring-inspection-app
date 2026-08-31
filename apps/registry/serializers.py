@@ -26,14 +26,25 @@ class InstituteSerializer(serializers.ModelSerializer):
     """
     ngo_name = serializers.CharField(source="ngo.name", read_only=True)
     scheme_name = serializers.CharField(source="scheme.name", read_only=True)
+    latest_inspection_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Institute
         fields = [
             "id", "name", "ngo", "ngo_name", "scheme", "scheme_name",
             "address", "state", "district", "latitude", "longitude",
-            "incharge", "is_active",
+            "incharge", "is_active", "latest_inspection_status",
         ]
+
+    def get_latest_inspection_status(self, obj):
+        """
+        Used to colour the map marker on the dashboard (Part 9). No AI risk
+        score exists yet (Phase 9 not built) — this is honestly just
+        "does this institute have a pending/overdue/submitted inspection",
+        not a risk assessment.
+        """
+        latest = obj.inspection_assignments.order_by("-assigned_at").first()
+        return latest.status if latest else "NO_INSPECTION"
 
 
 class ProjectSerializer(serializers.ModelSerializer):

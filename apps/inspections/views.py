@@ -11,16 +11,103 @@ from apps.core.geo import is_within_radius
 
 from .models import InspectionReport, InspectionAssignment, Evidence, InspectionTemplate, InspectionField
 from .serializers import (
+    AutoAssignRequestSerializer,
+    InspectionAssignmentSerializer,
     InspectionReportSerializer,
     InspectionReportCreateSerializer,
     InspectionTemplateSerializer,
 )
+from .services import auto_assign, select_surprise_institute
 
 
 class InspectionTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = InspectionTemplate.objects.filter(is_active=True)
     serializer_class = InspectionTemplateSerializer
     permission_classes = [IsAuthenticated]
+
+
+class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only, official-facing view of assignment history — separate from
+    InspectionReportViewSet, which is scoped to "my own" reports for
+    inspectors. Powers the institute detail page on the government dashboard.
+    Supports ?institute=<id>.
+    """
+    queryset = InspectionAssignment.objects.select_related("officer", "institute", "template").all()
+    serializer_class = InspectionAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not (user.is_staff or user.is_superuser):
+            # Field officers only ever see their own assignments here.
+            qs = qs.filter(officer=user)
+        institute_id = self.request.query_params.get("institute")
+        if institute_id:
+            qs = qs.filter(institute_id=institute_id)
+        return qs.order_by("-assigned_at")
+
+    def _require_official(self, request):
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Only officials can assign inspections."}, status=status.HTTP_403_FORBIDDEN)
+        return None
+
+    @action(detail=False, methods=["post"], url_path="auto-assign")
+    def auto_assign_action(self, request):
+        """
+        POST /api/inspections/assignments/auto-assign/
+        Body: {"institute": <id>, "template": <id, optional>, "due_in_days": <int, optional>}
+        Implements plan section 12/13 — official clicks "Assign Inspection",
+        backend picks the best officer by distance + workload.
+        """
+        denied = self._require_official(request)
+        if denied:
+            return denied
+
+        serializer = AutoAssignRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            assignment, breakdown = auto_assign(
+                institute=data["institute"],
+                template=data.get("template"),
+                due_in_days=data.get("due_in_days", 7),
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "assignment": InspectionAssignmentSerializer(assignment).data,
+            "candidates": breakdown,
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="surprise")
+    def surprise_action(self, request):
+        """
+        POST /api/inspections/assignments/surprise/
+        Plan section 14 — "Surprise Inspection": randomly picks an active
+        institute (weighted towards ones never/overdue inspected) and
+        auto-assigns the best available officer to it.
+        """
+        denied = self._require_official(request)
+        if denied:
+            return denied
+
+        institute = select_surprise_institute()
+        if institute is None:
+            return Response({"detail": "No active institutes to inspect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            assignment, breakdown = auto_assign(institute=institute)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "assignment": InspectionAssignmentSerializer(assignment).data,
+            "candidates": breakdown,
+        }, status=status.HTTP_201_CREATED)
 
 
 class InspectionReportViewSet(viewsets.GenericViewSet):
