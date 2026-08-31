@@ -35,6 +35,8 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "corsheaders",
     "simple_history",
+    "rest_framework.authtoken",
+    "storages",
     # "rest_framework_gis",     # Re-enable with PostGIS
     # "channels",               # Re-enable for Phase 4.5 (real-time dashboard)
     # "django_celery_beat",     # Re-enable for Phase 4.7 (random assignment scheduler)
@@ -143,11 +145,31 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+# ---------------------------------------------------------------------------
+# Optional: AWS S3 storage for production media files. Configure via .env:
+# USE_S3=True, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME
+# ---------------------------------------------------------------------------
+USE_S3 = env.bool("USE_S3", default=False)
+if USE_S3:
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=None)
+    AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default=None)
+
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    # Optional: media URL override when using S3
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    else:
+        MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
 
 # ---------------------------------------------------------------------------
 # Channels / Celery — disabled for now (both need Redis, which we're skipping
