@@ -1,0 +1,17 @@
+Django==5.0.7
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.3.1
+django-environ==0.11.2
+django-cors-headers==4.4.0
+django-simple-history==3.7.0
+Pillow==10.4.0
+WeasyPrint==59.0
+boto3==1.28.0
+django-storages==1.14.1
+opencv-python-headless==4.10.0.84   # Phase 7 — CCTV: webcam capture + MJPEG encoding, no GUI libs required
+
+# --- Added back in later phases, once we're ready for them ---
+# psycopg2-binary       # Phase: switching from SQLite to Postgres+PostGIS
+# djangorestframework-gis
+# channels + channels-redis   # Phase 4.5: real-time WebSocket dashboard (needs Redis)
+# celery + redis + django-celery-beat   # Phase 4.7: scheduled random-assignment jobs (needs Redis)

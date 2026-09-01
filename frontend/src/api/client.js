@@ -21,6 +21,17 @@ export function clearTokens() {
   localStorage.removeItem("refresh");
 }
 
+/**
+ * Phase 7 (CCTV) — the MJPEG stream endpoint has to be a plain <img src="">,
+ * which can't carry an Authorization header, so it authenticates via a
+ * `?token=` query param instead. Exported so pages can build that URL.
+ */
+export function getAccessToken() {
+  return getTokens().access;
+}
+
+export const API_BASE_URL = BASE_URL;
+
 client.interceptors.request.use((config) => {
   const { access } = getTokens();
   if (access) config.headers.Authorization = `Bearer ${access}`;

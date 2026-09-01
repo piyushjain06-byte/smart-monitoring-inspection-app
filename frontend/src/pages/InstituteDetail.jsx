@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { client } from "../api/client";
+import CctvPanel from "../components/CctvPanel";
 
 const STATUS_STYLE = {
   PENDING: "text-[var(--warn)]",
@@ -145,6 +146,8 @@ export default function InstituteDetail() {
           </ul>
         </section>
       </div>
+
+      <CctvPanel instituteId={id} />
     </div>
   );
 }

@@ -46,6 +46,7 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.registry",
     "apps.inspections",
+    "apps.cctv",
     "apps.core",
 ]
 
@@ -138,6 +139,13 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------------------------------------------------------------------------
+# CCTV (Phase 7)
+# ---------------------------------------------------------------------------
+# Seconds a camera can go without a frame/ping before the dashboard marks it
+# OFFLINE. See apps/cctv/models.py Camera.status.
+CCTV_OFFLINE_THRESHOLD_SECONDS = env.int("CCTV_OFFLINE_THRESHOLD_SECONDS", default=30)
 
 # ---------------------------------------------------------------------------
 # DRF
