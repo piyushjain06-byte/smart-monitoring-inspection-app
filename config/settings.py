@@ -47,7 +47,9 @@ LOCAL_APPS = [
     "apps.registry",
     "apps.inspections",
     "apps.cctv",
+    "apps.attendance",
     "apps.core",
+    "apps.analytics",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

@@ -2,13 +2,18 @@ import { useEffect, useState } from "react";
 import { client } from "../api/client";
 import StatCard from "../components/StatCard";
 import ProjectMap from "../components/ProjectMap";
+import AIAlertsPanel from "../components/AIAlertsPanel";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [institutes, setInstitutes] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
   const [error, setError] = useState("");
   const [surprising, setSurprising] = useState(false);
   const [surpriseResult, setSurpriseResult] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
 
   function loadData() {
     Promise.all([
@@ -20,6 +25,13 @@ export default function Dashboard() {
         setInstitutes(i.data);
       })
       .catch(() => setError("Could not load dashboard data. Is the Django server running?"));
+
+    setAlertsLoading(true);
+    client
+      .get("/analytics/alerts/?status=open")
+      .then(({ data }) => setAlerts(data))
+      .catch(() => setAlerts([]))
+      .finally(() => setAlertsLoading(false));
   }
 
   useEffect(loadData, []);
@@ -38,6 +50,23 @@ export default function Dashboard() {
     }
   }
 
+  async function handleRunAnalysis() {
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const { data } = await client.post("/analytics/run/");
+      setAnalysisResult({
+        ok: true,
+        message: `Scored ${data.evaluated} institute(s) — ${data.high_risk_count} HIGH risk, ${data.alerts_created} new alert(s).`,
+      });
+      loadData();
+    } catch (err) {
+      setAnalysisResult({ ok: false, message: err.response?.data?.detail || "Could not run AI analysis." });
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   if (error) {
     return <div className="p-8 text-sm text-[var(--danger)]">{error}</div>;
   }
@@ -51,13 +80,22 @@ export default function Dashboard() {
             Live overview of institutes, projects, and inspections.
           </p>
         </div>
-        <button
-          onClick={handleSurprise}
-          disabled={surprising}
-          className="shrink-0 bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors disabled:opacity-60"
-        >
-          {surprising ? "Assigning…" : "Surprise Inspection"}
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={handleRunAnalysis}
+            disabled={analyzing}
+            className="bg-white border border-[var(--ink)] text-[var(--ink)] text-sm font-medium px-4 py-2 hover:bg-[var(--ink)] hover:text-white transition-colors disabled:opacity-60"
+          >
+            {analyzing ? "Analyzing…" : "Run AI Analysis"}
+          </button>
+          <button
+            onClick={handleSurprise}
+            disabled={surprising}
+            className="bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors disabled:opacity-60"
+          >
+            {surprising ? "Assigning…" : "Surprise Inspection"}
+          </button>
+        </div>
       </header>
 
       {surpriseResult && (
@@ -74,11 +112,24 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {analysisResult && (
+        <div
+          className={`text-sm px-4 py-2 border ${
+            analysisResult.ok
+              ? "border-[var(--ok)] text-[var(--ok)] bg-[var(--ok)]/5"
+              : "border-[var(--danger)] text-[var(--danger)] bg-[var(--danger)]/5"
+          }`}
+        >
+          {analysisResult.message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Institutes" value={summary?.total_institutes ?? "—"} />
         <StatCard label="Active projects" value={summary?.active_projects ?? "—"} />
+        <StatCard label="High risk (AI)" value={summary?.high_risk_institutes ?? "—"} accent="var(--danger)" />
         <StatCard label="Inspections pending" value={summary?.pending_inspections ?? "—"} accent="var(--warn)" />
-        <StatCard label="Inspections overdue" value={summary?.overdue_inspections ?? "—"} accent="var(--danger)" />
+        <StatCard label="Open AI alerts" value={summary?.open_ai_alerts ?? "—"} accent="var(--danger)" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -86,20 +137,19 @@ export default function Dashboard() {
           <ProjectMap institutes={institutes} />
         </div>
 
-        <div className="bg-white border border-[var(--line)]">
-          <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">
-            Inspection status
+        <div className="space-y-4">
+          <div className="bg-white border border-[var(--line)]">
+            <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">
+              Inspection status
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <Row label="Submitted" value={summary?.submitted_inspections} color="var(--ok)" />
+              <Row label="Pending" value={summary?.pending_inspections} color="var(--warn)" />
+              <Row label="Overdue" value={summary?.overdue_inspections} color="var(--danger)" />
+            </div>
           </div>
-          <div className="p-4 space-y-3 text-sm">
-            <Row label="Submitted" value={summary?.submitted_inspections} color="var(--ok)" />
-            <Row label="Pending" value={summary?.pending_inspections} color="var(--warn)" />
-            <Row label="Overdue" value={summary?.overdue_inspections} color="var(--danger)" />
-          </div>
-          <div className="px-4 pb-4 text-xs text-[var(--ink-soft)] border-t border-[var(--line)] pt-3 mt-1">
-            AI-based risk scoring and CCTV/attendance anomaly alerts are planned for a
-            later phase and aren't wired in yet — this panel only reflects inspection
-            records that exist today.
-          </div>
+
+          <AIAlertsPanel alerts={alerts} loading={alertsLoading} />
         </div>
       </div>
     </div>
