@@ -36,8 +36,9 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """
     GET /api/analytics/risk/            -> most recent snapshot per institute
     GET /api/analytics/risk/<pk>/       -> one specific snapshot
-    GET /api/analytics/risk/institute/<institute_id>/live/  -> compute fresh, no snapshot needed/saved
-    GET /api/analytics/risk/institute/<institute_id>/pdf/   -> downloadable AI Risk Report (Part 33)
+    GET /api/analytics/risk/institute/<institute_id>/live/     -> compute fresh, no snapshot needed/saved
+    GET /api/analytics/risk/institute/<institute_id>/pdf/      -> downloadable AI Risk Report (Part 33)
+    GET /api/analytics/risk/institute/<institute_id>/history/  -> past snapshots, chronological (Part 33 trends)
     """
     serializer_class = RiskSnapshotSerializer
     permission_classes = [IsOfficial]
@@ -102,6 +103,35 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             return resp
         except Exception:
             return HttpResponse(html)
+
+    @action(detail=False, methods=["get"], url_path=r"institute/(?P<institute_id>\d+)/history")
+    def history(self, request, institute_id=None):
+        """
+        GET /api/analytics/risk/institute/<id>/history/?limit=20
+        Part 33 — "historical trends". Every POST /api/analytics/run/ already
+        saves a new RiskSnapshot row instead of overwriting the old one
+        (see RiskSnapshot.Meta.ordering = ['-computed_at']), so this just
+        surfaces that existing history in chronological order for charting.
+        Returns the most recent `limit` snapshots (default 20), oldest first.
+        """
+        try:
+            institute = _scoped_institutes(request.user).get(id=institute_id)
+        except Institute.DoesNotExist:
+            return Response({"detail": "Institute not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except ValueError:
+            limit = 20
+        limit = max(1, min(limit, 100))
+
+        snapshots = list(
+            RiskSnapshot.objects.filter(institute=institute).order_by("-computed_at")[:limit]
+        )
+        snapshots.reverse()  # chronological (oldest -> newest) for a left-to-right chart
+
+        serializer = RiskSnapshotSerializer(snapshots, many=True)
+        return Response(serializer.data)
 
 
 class AIAlertViewSet(viewsets.ReadOnlyModelViewSet):

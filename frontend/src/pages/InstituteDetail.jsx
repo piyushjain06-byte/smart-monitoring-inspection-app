@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { client } from "../api/client";
 import CctvPanel from "../components/CctvPanel";
+import RiskTrendChart from "../components/RiskTrendChart";
 
 const STATUS_STYLE = {
   PENDING: "text-[var(--warn)]",
@@ -25,6 +26,8 @@ export default function InstituteDetail() {
   const [assignResult, setAssignResult] = useState(null);
   const [risk, setRisk] = useState(null);
   const [riskLoading, setRiskLoading] = useState(true);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   function loadAssignments() {
     client.get(`/inspections/assignments/?institute=${id}`).then(({ data }) => setAssignments(data));
@@ -39,6 +42,15 @@ export default function InstituteDetail() {
       .finally(() => setRiskLoading(false));
   }
 
+  function loadHistory() {
+    setHistoryLoading(true);
+    client
+      .get(`/analytics/risk/institute/${id}/history/`)
+      .then(({ data }) => setHistory(data))
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }
+
   useEffect(() => {
     client
       .get(`/registry/institutes/${id}/`)
@@ -47,6 +59,7 @@ export default function InstituteDetail() {
     client.get(`/registry/projects/?institute=${id}`).then(({ data }) => setProjects(data));
     loadAssignments();
     loadRisk();
+    loadHistory();
   }, [id]);
 
   async function handleAssign() {
@@ -232,6 +245,22 @@ export default function InstituteDetail() {
               compared to other institutes.
             </p>
           )}
+        </div>
+      </section>
+
+      <section className="bg-white border border-[var(--line)]">
+        <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">
+          Risk score trend
+        </div>
+        <div className="p-4">
+          {historyLoading && <p className="text-sm text-[var(--ink-soft)]">Loading…</p>}
+          {!historyLoading && history.length < 2 && (
+            <p className="text-sm text-[var(--ink-soft)]">
+              Not enough history yet — each click of "Run AI Analysis" on the dashboard adds
+              one point here. Run it a few times (ideally on different days) to build a trend.
+            </p>
+          )}
+          {!historyLoading && history.length >= 2 && <RiskTrendChart data={history} />}
         </div>
       </section>
 
