@@ -9,6 +9,12 @@ const STATUS_STYLE = {
   SUBMITTED: "text-[var(--ok)]",
 };
 
+const SEVERITY_STYLE = {
+  LOW: "text-[var(--ok)]",
+  MEDIUM: "text-[var(--warn)]",
+  HIGH: "text-[var(--danger)]",
+};
+
 export default function InstituteDetail() {
   const { id } = useParams();
   const [institute, setInstitute] = useState(null);
@@ -17,9 +23,20 @@ export default function InstituteDetail() {
   const [notFound, setNotFound] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState(null);
+  const [risk, setRisk] = useState(null);
+  const [riskLoading, setRiskLoading] = useState(true);
 
   function loadAssignments() {
     client.get(`/inspections/assignments/?institute=${id}`).then(({ data }) => setAssignments(data));
+  }
+
+  function loadRisk() {
+    setRiskLoading(true);
+    client
+      .get(`/analytics/risk/institute/${id}/live/`)
+      .then(({ data }) => setRisk(data))
+      .catch(() => setRisk(null))
+      .finally(() => setRiskLoading(false));
   }
 
   useEffect(() => {
@@ -29,6 +46,7 @@ export default function InstituteDetail() {
       .catch(() => setNotFound(true));
     client.get(`/registry/projects/?institute=${id}`).then(({ data }) => setProjects(data));
     loadAssignments();
+    loadRisk();
   }, [id]);
 
   async function handleAssign() {
@@ -146,6 +164,41 @@ export default function InstituteDetail() {
           </ul>
         </section>
       </div>
+
+      <section className="bg-white border border-[var(--line)]">
+        <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium flex items-center justify-between">
+          <span>AI risk assessment</span>
+          {risk && (
+            <span className={`text-sm font-semibold ${SEVERITY_STYLE[risk.severity] || ""}`}>
+              {risk.score}/100 — {risk.severity}
+            </span>
+          )}
+        </div>
+        <div className="p-4 text-sm space-y-3">
+          {riskLoading && <p className="text-[var(--ink-soft)]">Computing…</p>}
+          {!riskLoading && risk && risk.factors.length === 0 && (
+            <p className="text-[var(--ink-soft)]">
+              No risk factors currently triggered for this institute.
+            </p>
+          )}
+          {!riskLoading && risk && risk.factors.length > 0 && (
+            <ul className="space-y-2">
+              {risk.factors.map((f) => (
+                <li key={f.factor} className="flex justify-between gap-4">
+                  <span>{f.detail}</span>
+                  <span className="shrink-0 text-[var(--danger)] font-medium">+{f.points}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!riskLoading && risk?.is_anomaly && (
+            <p className="text-xs text-[var(--ink-soft)] border-t border-[var(--line)] pt-2">
+              Flagged by the anomaly model (Isolation Forest) as statistically unusual
+              compared to other institutes.
+            </p>
+          )}
+        </div>
+      </section>
 
       <CctvPanel instituteId={id} />
     </div>

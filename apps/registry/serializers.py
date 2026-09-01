@@ -27,6 +27,8 @@ class InstituteSerializer(serializers.ModelSerializer):
     ngo_name = serializers.CharField(source="ngo.name", read_only=True)
     scheme_name = serializers.CharField(source="scheme.name", read_only=True)
     latest_inspection_status = serializers.SerializerMethodField()
+    latest_risk_severity = serializers.SerializerMethodField()
+    latest_risk_score = serializers.SerializerMethodField()
 
     class Meta:
         model = Institute
@@ -34,17 +36,34 @@ class InstituteSerializer(serializers.ModelSerializer):
             "id", "name", "ngo", "ngo_name", "scheme", "scheme_name",
             "address", "state", "district", "latitude", "longitude",
             "incharge", "is_active", "latest_inspection_status",
+            "latest_risk_severity", "latest_risk_score",
         ]
 
     def get_latest_inspection_status(self, obj):
         """
-        Used to colour the map marker on the dashboard (Part 9). No AI risk
-        score exists yet (Phase 9 not built) — this is honestly just
-        "does this institute have a pending/overdue/submitted inspection",
-        not a risk assessment.
+        Fallback map-marker colouring for institutes with no AI risk score
+        yet (i.e. the Phase 9 engine hasn't run for them) — "does this
+        institute have a pending/overdue/submitted inspection", not a risk
+        assessment.
         """
         latest = obj.inspection_assignments.order_by("-assigned_at").first()
         return latest.status if latest else "NO_INSPECTION"
+
+    def _latest_snapshot(self, obj):
+        # Cached per-instance so the two SerializerMethodFields below don't
+        # each hit the DB separately for the same institute.
+        if not hasattr(obj, "_latest_risk_snapshot_cache"):
+            obj._latest_risk_snapshot_cache = obj.risk_snapshots.order_by("-computed_at").first()
+        return obj._latest_risk_snapshot_cache
+
+    def get_latest_risk_severity(self, obj):
+        """Phase 9 — LOW/MEDIUM/HIGH from the most recent risk-engine run, or None if it hasn't run yet."""
+        snapshot = self._latest_snapshot(obj)
+        return snapshot.severity if snapshot else None
+
+    def get_latest_risk_score(self, obj):
+        snapshot = self._latest_snapshot(obj)
+        return snapshot.score if snapshot else None
 
 
 class ProjectSerializer(serializers.ModelSerializer):

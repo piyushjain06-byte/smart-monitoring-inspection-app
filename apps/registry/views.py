@@ -1,3 +1,4 @@
+from django.db.models import Max
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -81,14 +82,20 @@ class DashboardSummaryView(APIView):
     """
     GET /api/registry/dashboard-summary/
     Powers the top stat cards + map on the React government dashboard
-    (Part 10 of the plan). Deliberately only reports what's actually
-    implemented so far (no fabricated AI risk scores — that's Phase 9,
-    not built yet). Respects the same state/district scoping as
+    (Part 10 of the plan). Respects the same state/district scoping as
     InstituteViewSet.
+
+    high_risk_institutes / open_ai_alerts come from apps.analytics
+    (Phase 9's rule-based risk engine + Isolation Forest anomaly model) —
+    real, computed values from whatever RiskSnapshot/AIAlert rows exist,
+    not a fabricated number. They read 0 until someone runs the risk
+    engine (POST /api/analytics/run/) at least once.
     """
     permission_classes = [IsOfficial]
 
     def get(self, request):
+        from apps.analytics.models import AIAlert, RiskSnapshot  # local import: registry doesn't need analytics at import time
+
         user = request.user
         institutes = Institute.objects.all()
         if not (user.is_superuser or user.is_staff):
@@ -97,9 +104,22 @@ class DashboardSummaryView(APIView):
             elif getattr(user, "role", None) == "STATE_AUTHORITY" and user.state:
                 institutes = institutes.filter(state=user.state)
 
-        institute_ids = institutes.values_list("id", flat=True)
+        institute_ids = list(institutes.values_list("id", flat=True))
         projects = Project.objects.filter(institute_id__in=institute_ids)
         assignments = InspectionAssignment.objects.filter(institute_id__in=institute_ids)
+
+        # Latest RiskSnapshot per institute, counted HIGH — mirrors
+        # RiskSnapshotViewSet.get_queryset() in apps.analytics.views.
+        latest_per_institute = (
+            RiskSnapshot.objects.filter(institute_id__in=institute_ids)
+            .values("institute").annotate(latest=Max("computed_at")).values_list("latest", flat=True)
+        )
+        high_risk_institutes = RiskSnapshot.objects.filter(
+            institute_id__in=institute_ids, computed_at__in=latest_per_institute, severity="HIGH",
+        ).count()
+        open_ai_alerts = AIAlert.objects.filter(
+            institute_id__in=institute_ids, status=AIAlert.Status.OPEN,
+        ).count()
 
         return Response({
             "total_institutes": institutes.count(),
@@ -109,4 +129,6 @@ class DashboardSummaryView(APIView):
             "pending_inspections": assignments.filter(status=InspectionAssignment.Status.PENDING).count(),
             "overdue_inspections": assignments.filter(status=InspectionAssignment.Status.OVERDUE).count(),
             "submitted_inspections": assignments.filter(status=InspectionAssignment.Status.SUBMITTED).count(),
+            "high_risk_institutes": high_risk_institutes,
+            "open_ai_alerts": open_ai_alerts,
         })
