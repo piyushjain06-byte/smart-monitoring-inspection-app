@@ -10,6 +10,7 @@ import InstituteDetail from "./pages/InstituteDetail";
 import InspectorAssignments from "./pages/InspectorAssignments";
 import SubmitInspection from "./pages/SubmitInspection";
 import RoleRedirect from "./pages/RoleRedirect";
+import Attendance from "./pages/Attendance";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/institutes" element={<Institutes />} />
             <Route path="/institutes/:id" element={<InstituteDetail />} />
+            <Route path="/attendance" element={<Attendance />} />
           </Route>
 
           {/* Field inspector portal — Inspection Officer / PMU Team only */}
