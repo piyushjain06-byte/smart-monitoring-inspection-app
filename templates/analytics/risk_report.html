@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI Risk Report — {{ institute.name }}</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; color: #0f2438; }
+    h1 { font-size: 20px; margin-bottom: 2px; }
+    .subtitle { color: #33506b; font-size: 12px; margin-bottom: 20px; }
+    .score-box { display: inline-block; padding: 10px 18px; border-radius: 4px; color: #fff; font-size: 22px; font-weight: bold; }
+    .LOW { background: #157a4a; }
+    .MEDIUM { background: #b5790a; }
+    .HIGH { background: #b23b3b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    td, th { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #f6f7f9; }
+    .meta { margin-top: 24px; font-size: 11px; color: #33506b; }
+    .no-factors { color: #33506b; font-style: italic; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>AI Risk Assessment Report</h1>
+  <div class="subtitle">
+    {{ institute.name }} — {{ institute.district }}, {{ institute.state }}<br>
+    Scheme: {{ institute.scheme.name }} · NGO: {{ institute.ngo.name }}
+  </div>
+
+  <div class="score-box {{ breakdown.severity }}">
+    {{ breakdown.score }}/100 — {{ breakdown.severity }}
+  </div>
+
+  {% if breakdown.is_anomaly %}
+    <p style="margin-top:12px; font-size:12px;">
+      ⚠ Flagged by the anomaly model (Isolation Forest) as statistically unusual
+      compared to other institutes{% if breakdown.anomaly_score is not None %} (score: {{ breakdown.anomaly_score }}){% endif %}.
+    </p>
+  {% endif %}
+
+  <h2 style="font-size:15px; margin-top:24px;">Triggered Risk Factors</h2>
+  {% if breakdown.factors %}
+  <table>
+    <thead><tr><th>Factor</th><th>Points</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for f in breakdown.factors %}
+      <tr>
+        <td>{{ f.factor }}</td>
+        <td>+{{ f.points }}</td>
+        <td>{{ f.detail }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="no-factors">No risk factors currently triggered for this institute.</p>
+  {% endif %}
+
+  <h2 style="font-size:15px; margin-top:24px;">Underlying Signals</h2>
+  <table>
+    <tbody>
+      <tr><th>Staff count</th><td>{{ breakdown.features.staff_count }}</td></tr>
+      <tr><th>Beneficiary count</th><td>{{ breakdown.features.beneficiary_count }}</td></tr>
+      <tr>
+        <th>Attendance rate (last 30 days)</th>
+        <td>{% if breakdown.features.attendance_rate is not None %}{{ breakdown.features.attendance_rate|floatformat:0 }}% ({{ breakdown.features.attendance_sample_size }} marks){% else %}No data yet{% endif %}</td>
+      </tr>
+      <tr>
+        <th>CCTV uptime</th>
+        <td>{% if breakdown.features.camera_online_ratio is not None %}{{ breakdown.features.camera_online_ratio|floatformat:0 }}% of {{ breakdown.features.camera_count }} camera(s) online{% else %}No cameras registered{% endif %}</td>
+      </tr>
+      <tr>
+        <th>Latest inspection score</th>
+        <td>{% if breakdown.features.latest_inspection_score is not None %}{{ breakdown.features.latest_inspection_score }}/100{% else %}No submitted inspection yet{% endif %}</td>
+      </tr>
+      <tr><th>Total inspections on record</th><td>{{ breakdown.features.inspection_frequency }}</td></tr>
+      <tr><th>High-severity alerts (last 90 days)</th><td>{{ breakdown.features.recent_high_alerts }}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="meta">
+    Generated {{ generated_at }} · DoSJE Smart Monitoring &amp; Inspection Platform (PS 26095)
+  </div>
+</body>
+</html>

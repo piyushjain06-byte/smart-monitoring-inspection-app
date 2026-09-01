@@ -63,6 +63,33 @@ export default function InstituteDetail() {
     }
   }
 
+  async function handleDownloadRiskPdf() {
+    try {
+      const res = await client.get(`/analytics/risk/institute/${id}/pdf/`, { responseType: "blob" });
+      const contentType = res.headers["content-type"] || "";
+      const isPdf = contentType.includes("pdf");
+      const blob = new Blob([res.data], { type: isPdf ? "application/pdf" : "text/html" });
+      const url = window.URL.createObjectURL(blob);
+
+      if (isPdf) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `risk-report-${id}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else {
+        // WeasyPrint isn't available on this machine — the backend fell
+        // back to plain HTML. Open it in a new tab instead of downloading
+        // a file mislabeled as .pdf, which browsers/PDF viewers can't open.
+        window.open(url, "_blank");
+      }
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // Silently ignore — the panel already shows risk data on-screen either way.
+    }
+  }
+
   if (notFound) {
     return (
       <div className="p-8">
@@ -168,11 +195,19 @@ export default function InstituteDetail() {
       <section className="bg-white border border-[var(--line)]">
         <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium flex items-center justify-between">
           <span>AI risk assessment</span>
-          {risk && (
-            <span className={`text-sm font-semibold ${SEVERITY_STYLE[risk.severity] || ""}`}>
-              {risk.score}/100 — {risk.severity}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {risk && (
+              <span className={`text-sm font-semibold ${SEVERITY_STYLE[risk.severity] || ""}`}>
+                {risk.score}/100 — {risk.severity}
+              </span>
+            )}
+            <button
+              onClick={handleDownloadRiskPdf}
+              className="text-xs text-[var(--accent)] underline"
+            >
+              Download PDF
+            </button>
+          </div>
         </div>
         <div className="p-4 text-sm space-y-3">
           {riskLoading && <p className="text-[var(--ink-soft)]">Computing…</p>}

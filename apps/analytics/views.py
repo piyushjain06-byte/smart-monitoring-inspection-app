@@ -4,6 +4,8 @@ actions: a POST "run" endpoint the official clicks on the dashboard, plus
 read-only listing for what the engine has already produced.
 """
 from django.db.models import Max
+from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -35,6 +37,7 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/analytics/risk/            -> most recent snapshot per institute
     GET /api/analytics/risk/<pk>/       -> one specific snapshot
     GET /api/analytics/risk/institute/<institute_id>/live/  -> compute fresh, no snapshot needed/saved
+    GET /api/analytics/risk/institute/<institute_id>/pdf/   -> downloadable AI Risk Report (Part 33)
     """
     serializer_class = RiskSnapshotSerializer
     permission_classes = [IsOfficial]
@@ -68,6 +71,37 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         breakdown = compute_risk_for_institute(institute)
         breakdown["institute_name"] = institute.name
         return Response(breakdown)
+
+    @action(detail=False, methods=["get"], url_path=r"institute/(?P<institute_id>\d+)/pdf")
+    def pdf(self, request, institute_id=None):
+        """
+        GET /api/analytics/risk/institute/<id>/pdf/
+        Part 33 of the plan — downloadable AI Risk Report. Computes a fresh
+        breakdown (same as `live/`) and renders it through WeasyPrint,
+        mirroring the pattern already used for inspection reports in
+        apps/inspections/views.py.
+        """
+        try:
+            institute = _scoped_institutes(request.user).get(id=institute_id)
+        except Institute.DoesNotExist:
+            return Response({"detail": "Institute not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        breakdown = compute_risk_for_institute(institute)
+        html = render_to_string("analytics/risk_report.html", {
+            "institute": institute,
+            "breakdown": breakdown,
+            "generated_at": timezone.now(),
+        })
+
+        try:
+            from weasyprint import HTML
+
+            pdf = HTML(string=html).write_pdf()
+            resp = HttpResponse(pdf, content_type="application/pdf")
+            resp["Content-Disposition"] = f"attachment; filename=risk-report-{institute.id}.pdf"
+            return resp
+        except Exception:
+            return HttpResponse(html)
 
 
 class AIAlertViewSet(viewsets.ReadOnlyModelViewSet):
