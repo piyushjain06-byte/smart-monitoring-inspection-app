@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/registry/", include("apps.registry.urls")),
     path("api/inspections/", include("apps.inspections.urls")),
     path("api/cctv/", include("apps.cctv.urls")),
+    path("api/attendance/", include("apps.attendance.urls")),
     # JWT — used by the React dashboard + inspector web app (Part 7 of the plan)
     path("api/auth/login/", TokenObtainPairView.as_view(), name="jwt-login"),
     path("api/auth/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),

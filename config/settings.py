@@ -47,6 +47,7 @@ LOCAL_APPS = [
     "apps.registry",
     "apps.inspections",
     "apps.cctv",
+    "apps.attendance",
     "apps.core",
 ]
 

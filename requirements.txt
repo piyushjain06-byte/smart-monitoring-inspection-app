@@ -8,6 +8,7 @@ Pillow==10.4.0
 WeasyPrint==59.0
 boto3==1.28.0
 django-storages==1.14.1
+opencv-python-headless==4.10.0.84
 
 # --- Added back in later phases, once we're ready for them ---
 # psycopg2-binary       # Phase: switching from SQLite to Postgres+PostGIS
