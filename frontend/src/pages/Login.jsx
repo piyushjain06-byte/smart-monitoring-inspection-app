@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { client } from "../api/client";
+import { isOfficial } from "../constants/roles";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -16,7 +18,10 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(username, password);
-      navigate("/", { replace: true });
+      // login() only sets tokens; fetch the profile once more here so we can
+      // route immediately without waiting on AuthContext's next render.
+      const { data: me } = await client.get("/accounts/me/");
+      navigate(isOfficial(me) ? "/" : "/inspector", { replace: true });
     } catch {
       setError("Username or password is incorrect.");
     } finally {

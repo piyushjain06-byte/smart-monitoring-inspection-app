@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.geo import is_within_radius
+from apps.core.permissions import IsOfficial
 
 from .models import InspectionReport, InspectionAssignment, Evidence, InspectionTemplate, InspectionField
 from .serializers import (
@@ -38,9 +39,10 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        from apps.core.permissions import is_official
         qs = super().get_queryset()
         user = self.request.user
-        if not (user.is_staff or user.is_superuser):
+        if not is_official(user):
             # Field officers only ever see their own assignments here.
             qs = qs.filter(officer=user)
         institute_id = self.request.query_params.get("institute")
@@ -49,7 +51,8 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
         return qs.order_by("-assigned_at")
 
     def _require_official(self, request):
-        if not (request.user.is_staff or request.user.is_superuser):
+        from apps.core.permissions import is_official
+        if not is_official(request.user):
             return Response({"detail": "Only officials can assign inspections."}, status=status.HTTP_403_FORBIDDEN)
         return None
 

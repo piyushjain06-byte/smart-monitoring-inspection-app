@@ -44,14 +44,22 @@ class InspectionReportSerializer(serializers.ModelSerializer):
 
 
 class InspectionAssignmentSerializer(serializers.ModelSerializer):
-    """Read-only summary used on the government dashboard's institute detail view."""
+    """Read-only summary used on the government dashboard's institute detail
+    view, and on the inspector's "My Assignments" list."""
     officer_name = serializers.SerializerMethodField()
     template_name = serializers.CharField(source="template.name", read_only=True)
+    institute_name = serializers.CharField(source="institute.name", read_only=True)
+    institute_district = serializers.CharField(source="institute.district", read_only=True)
+    institute_state = serializers.CharField(source="institute.state", read_only=True)
+    institute_latitude = serializers.FloatField(source="institute.latitude", read_only=True)
+    institute_longitude = serializers.FloatField(source="institute.longitude", read_only=True)
 
     class Meta:
         model = InspectionAssignment
         fields = [
-            "id", "institute", "officer", "officer_name", "template", "template_name",
+            "id", "institute", "institute_name", "institute_district", "institute_state",
+            "institute_latitude", "institute_longitude",
+            "officer", "officer_name", "template", "template_name",
             "assigned_at", "due_date", "status",
         ]
 

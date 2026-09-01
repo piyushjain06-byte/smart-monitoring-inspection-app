@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.permissions import IsOfficial
 from apps.inspections.models import InspectionAssignment
 
 from .models import Beneficiary, Institute, NGO, Project, Scheme, Staff
@@ -19,17 +20,20 @@ from .serializers import (
 class SchemeViewSet(viewsets.ModelViewSet):
     queryset = Scheme.objects.all()
     serializer_class = SchemeSerializer
+    permission_classes = [IsOfficial]
 
 
 class NGOViewSet(viewsets.ModelViewSet):
     queryset = NGO.objects.all()
     serializer_class = NGOSerializer
+    permission_classes = [IsOfficial]
 
 
 class InstituteViewSet(viewsets.ModelViewSet):
     """Powers the dashboard map view (Part 4.5) once we build it."""
     queryset = Institute.objects.select_related("ngo", "scheme").all()
     serializer_class = InstituteSerializer
+    permission_classes = [IsOfficial]
 
     def get_queryset(self):
         """
@@ -50,6 +54,7 @@ class InstituteViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.select_related("institute").all()
     serializer_class = ProjectSerializer
+    permission_classes = [IsOfficial]
 
     def get_queryset(self):
         """Supports ?institute=<id> so the dashboard can show one institute's projects."""
@@ -63,11 +68,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.select_related("institute").all()
     serializer_class = StaffSerializer
+    permission_classes = [IsOfficial]
 
 
 class BeneficiaryViewSet(viewsets.ModelViewSet):
     queryset = Beneficiary.objects.select_related("project").all()
     serializer_class = BeneficiarySerializer
+    permission_classes = [IsOfficial]
 
 
 class DashboardSummaryView(APIView):
@@ -79,7 +86,7 @@ class DashboardSummaryView(APIView):
     not built yet). Respects the same state/district scoping as
     InstituteViewSet.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOfficial]
 
     def get(self, request):
         user = request.user
