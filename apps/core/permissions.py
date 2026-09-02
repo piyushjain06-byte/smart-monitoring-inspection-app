@@ -2,11 +2,18 @@
 Shared DRF permission classes, used across apps.registry and apps.inspections
 so "who counts as an official vs. a field officer" is defined in exactly one
 place instead of being re-implemented per view.
+
+Extended (post-Phase-3 work) with NGO_ADMIN / PROJECT_INCHARGE checks for
+the NGO/Institute portal — see apps/registry/portal_views.py. These are
+kept as separate helpers rather than folded into is_official()/IsOfficial,
+since an NGO admin or project incharge should NOT see the government
+dashboard's full cross-institute data — they get their own, narrower views.
 """
 from rest_framework.permissions import BasePermission
 
 OFFICIAL_ROLES = {"SUPER_ADMIN", "STATE_AUTHORITY", "DISTRICT_AUTHORITY"}
 FIELD_ROLES = {"INSPECTION_OFFICER", "PMU_TEAM"}
+NGO_PORTAL_ROLES = {"NGO_ADMIN", "PROJECT_INCHARGE"}
 
 
 def is_official(user):
@@ -14,10 +21,46 @@ def is_official(user):
     True for anyone who should see the government dashboard: the three
     authority roles, plus Django is_staff/is_superuser (covers the
     createsuperuser account, which may not have `role` set to SUPER_ADMIN).
+
+    NOTE (role-scoping audit): the is_staff/is_superuser fallback below is
+    intentionally permissive for local/demo convenience, but it means an
+    NGO_ADMIN or PROJECT_INCHARGE account that also has is_staff=True (e.g.
+    created by hand in /admin/) will be routed here instead of to their own
+    portal. This is a config issue on individual accounts, not a bug in
+    this function — run `python manage.py audit_roles` to find and fix any
+    accounts where that's happened.
     """
     if not user or not user.is_authenticated:
         return False
     return user.is_staff or user.is_superuser or getattr(user, "role", None) in OFFICIAL_ROLES
+
+
+def is_field_officer(user):
+    """True for Inspection Officer / PMU Team accounts (mirrors frontend/src/constants/roles.js)."""
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(user, "role", None) in FIELD_ROLES and not is_official(user)
+
+
+def is_ngo_admin(user):
+    """True for NGO/Institute Admin accounts — see NGO.admin_user in apps.registry.models."""
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(user, "role", None) == "NGO_ADMIN"
+
+
+def is_project_incharge(user):
+    """True for Project Incharge accounts — see Institute.incharge in apps.registry.models."""
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(user, "role", None) == "PROJECT_INCHARGE"
+
+
+def is_ngo_portal_user(user):
+    """True for either NGO portal role, and not already an official (mirrors is_field_officer's shape)."""
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(user, "role", None) in NGO_PORTAL_ROLES and not is_official(user)
 
 
 class IsOfficial(BasePermission):
@@ -26,3 +69,11 @@ class IsOfficial(BasePermission):
 
     def has_permission(self, request, view):
         return is_official(request.user)
+
+
+class IsNGOOrIncharge(BasePermission):
+    """Restricts a view to the NGO/Institute Admin or Project Incharge portal."""
+    message = "This is only available to NGO admins or project incharges."
+
+    def has_permission(self, request, view):
+        return is_ngo_admin(request.user) or is_project_incharge(request.user)

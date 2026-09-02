@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isOfficial, isFieldOfficer } from "../constants/roles";
+import { isOfficial, isFieldOfficer, isNGOPortalUser } from "../constants/roles";
 
 function LoadingScreen() {
   return (
@@ -33,5 +33,14 @@ export function FieldOfficerRoute({ children }) {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (!isFieldOfficer(user)) return <Navigate to="/" replace />;
+  return children;
+}
+
+/** NGO Admin / Project Incharge only — sends everyone else back through RoleRedirect. */
+export function NGOPortalRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isNGOPortalUser(user)) return <Navigate to="/" replace />;
   return children;
 }

@@ -63,6 +63,13 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         Computes a fresh breakdown for one institute without requiring a
         saved snapshot to already exist — used by the institute detail page
         so it works even before anyone has clicked "Run AI Analysis" yet.
+
+        Also reports `last_snapshot_at` / `last_snapshot_age_days` — the
+        timestamp of the most recent *saved* RiskSnapshot (if any), kept
+        deliberately separate from the freshly-computed score above. Since
+        there's no Celery scheduler yet (see README's "Stale trend nudge"
+        item), a saved score can silently go stale; the frontend uses this
+        to show "last analyzed N days ago" next to the live number.
         """
         try:
             institute = _scoped_institutes(request.user).get(id=institute_id)
@@ -71,6 +78,15 @@ class RiskSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
         breakdown = compute_risk_for_institute(institute)
         breakdown["institute_name"] = institute.name
+
+        last_snapshot = institute.risk_snapshots.order_by("-computed_at").first()
+        if last_snapshot:
+            breakdown["last_snapshot_at"] = last_snapshot.computed_at.isoformat()
+            breakdown["last_snapshot_age_days"] = (timezone.now() - last_snapshot.computed_at).days
+        else:
+            breakdown["last_snapshot_at"] = None
+            breakdown["last_snapshot_age_days"] = None
+
         return Response(breakdown)
 
     @action(detail=False, methods=["get"], url_path=r"institute/(?P<institute_id>\d+)/pdf")

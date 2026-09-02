@@ -1,3 +1,5 @@
+import csv
+
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.http import HttpResponse
@@ -111,6 +113,30 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
             "assignment": InspectionAssignmentSerializer(assignment).data,
             "candidates": breakdown,
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="export-csv")
+    def export_csv(self, request):
+        """
+        GET /api/inspections/assignments/export-csv/?institute=<id optional>
+        Same scoping/filters as the normal list endpoint (officials see
+        everything in scope; field officers only their own). Plain CSV,
+        no new dependencies — see README's "Good next tasks" list.
+        """
+        qs = self.get_queryset()
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=inspections.csv"
+        writer = csv.writer(response)
+        writer.writerow(["Institute", "Officer", "Template", "Assigned At", "Due Date", "Status"])
+        for a in qs:
+            writer.writerow([
+                a.institute.name,
+                a.officer.get_full_name() or a.officer.username,
+                a.template.name,
+                a.assigned_at,
+                a.due_date,
+                a.status,
+            ])
+        return response
 
 
 class InspectionReportViewSet(viewsets.GenericViewSet):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { client } from "../api/client";
+import { client, downloadBlob } from "../api/client";
 
 const STATUS_STYLE = {
   PENDING: "text-[var(--warn)]",
@@ -19,6 +19,8 @@ const STATUS_LABEL = {
 export default function Institutes() {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     client
@@ -27,14 +29,37 @@ export default function Institutes() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      await downloadBlob("/registry/institutes/export-csv/", "institutes.csv");
+    } catch {
+      setExportError("Could not export institutes.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <header>
-        <h1 className="text-lg font-semibold text-[var(--ink)]">Institutes &amp; Projects</h1>
-        <p className="text-sm text-[var(--ink-soft)]">
-          Every registered institute under the platform's schemes.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--ink)]">Institutes &amp; Projects</h1>
+          <p className="text-sm text-[var(--ink-soft)]">
+            Every registered institute under the platform's schemes.
+          </p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="shrink-0 border border-[var(--ink)] text-[var(--ink)] text-sm font-medium px-4 py-2 hover:bg-[var(--ink)] hover:text-white transition-colors disabled:opacity-60"
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
       </header>
+
+      {exportError && <p className="text-sm text-[var(--danger)]">{exportError}</p>}
 
       <div className="bg-white border border-[var(--line)]">
         <table className="w-full text-sm">

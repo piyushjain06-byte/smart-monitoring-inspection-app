@@ -71,3 +71,22 @@ client.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Shared helper for "download this as a file" buttons (CSV exports, the
+ * AI Risk Report PDF, etc). Fetches `url` as a blob through the same JWT
+ * client used everywhere else, then triggers a browser download with
+ * `filename`. Throws on failure so callers can show their own error state.
+ */
+export async function downloadBlob(url, filename) {
+  const res = await client.get(url, { responseType: "blob" });
+  const blob = new Blob([res.data], { type: res.headers["content-type"] || "application/octet-stream" });
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}

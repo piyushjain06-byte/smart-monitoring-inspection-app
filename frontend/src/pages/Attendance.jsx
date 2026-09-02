@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { client } from "../api/client";
+import { client, downloadBlob } from "../api/client";
 
 const STATUS_STYLE = {
   PRESENT: "text-[var(--ok)]",
@@ -19,6 +19,7 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   function loadData() {
     setLoading(true);
@@ -80,13 +81,34 @@ export default function Attendance() {
     }
   }
 
+  async function handleExport() {
+    setExporting(true);
+    setError("");
+    try {
+      await downloadBlob("/attendance/records/export-csv/", "attendance.csv");
+    } catch {
+      setError("Could not export attendance records.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="p-8 space-y-6">
-      <header>
-        <h1 className="text-lg font-semibold text-[var(--ink)]">Attendance</h1>
-        <p className="text-sm text-[var(--ink-soft)]">
-          Daily staff attendance tracking for each institute.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--ink)]">Attendance</h1>
+          <p className="text-sm text-[var(--ink-soft)]">
+            Daily staff attendance tracking for each institute.
+          </p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="shrink-0 border border-[var(--ink)] text-[var(--ink)] text-sm font-medium px-4 py-2 hover:bg-[var(--ink)] hover:text-white transition-colors disabled:opacity-60"
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
       </header>
 
       {error && (

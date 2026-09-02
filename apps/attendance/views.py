@@ -1,6 +1,7 @@
+import csv
 from datetime import datetime
 
-from django.db.models import Q
+from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -109,3 +110,22 @@ class AttendanceRecordViewSet(viewsets.ModelViewSet):
             "late": late,
             "absent": absent,
         })
+
+    @action(detail=False, methods=["get"], url_path="export-csv")
+    def export_csv(self, request):
+        """
+        GET /api/attendance/records/export-csv/?institute=<id optional>
+        Same ?institute=/?staff= filters as the normal list endpoint. Plain
+        CSV, no new dependencies — see README's "Good next tasks" list.
+        """
+        qs = self.get_queryset()
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=attendance.csv"
+        writer = csv.writer(response)
+        writer.writerow(["Staff", "Institute", "Date", "Check In", "Check Out", "Status", "Notes"])
+        for record in qs:
+            writer.writerow([
+                record.staff.full_name, record.institute.name, record.date,
+                record.check_in, record.check_out, record.status, record.notes,
+            ])
+        return response

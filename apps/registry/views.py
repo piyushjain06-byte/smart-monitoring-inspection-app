@@ -1,5 +1,9 @@
+import csv
+
 from django.db.models import Max
+from django.http import HttpResponse
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -50,6 +54,35 @@ class InstituteViewSet(viewsets.ModelViewSet):
         if user.role == "STATE_AUTHORITY" and user.state:
             return qs.filter(state=user.state)
         return qs
+
+    @action(detail=False, methods=["get"], url_path="export-csv")
+    def export_csv(self, request):
+        """
+        GET /api/registry/institutes/export-csv/
+        Plain CSV export for offline government reporting (see README's
+        "Good next tasks" list) — same scoping as the normal list endpoint,
+        no new dependencies, just csv.writer + HttpResponse.
+        """
+        qs = self.get_queryset()
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=institutes.csv"
+        writer = csv.writer(response)
+        writer.writerow([
+            "ID", "Name", "NGO", "Scheme", "State", "District",
+            "Latitude", "Longitude", "Active",
+            "Latest Inspection Status", "Latest Risk Severity", "Latest Risk Score",
+        ])
+        for inst in qs:
+            latest_assignment = inst.inspection_assignments.order_by("-assigned_at").first()
+            latest_snapshot = inst.risk_snapshots.order_by("-computed_at").first()
+            writer.writerow([
+                inst.id, inst.name, inst.ngo.name, inst.scheme.name,
+                inst.state, inst.district, inst.latitude, inst.longitude, inst.is_active,
+                latest_assignment.status if latest_assignment else "NO_INSPECTION",
+                latest_snapshot.severity if latest_snapshot else "",
+                latest_snapshot.score if latest_snapshot else "",
+            ])
+        return response
 
 
 class ProjectViewSet(viewsets.ModelViewSet):

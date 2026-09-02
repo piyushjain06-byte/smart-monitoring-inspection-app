@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { client } from "../api/client";
+import { client, downloadBlob } from "../api/client";
 import CctvPanel from "../components/CctvPanel";
 import RiskTrendChart from "../components/RiskTrendChart";
 
@@ -16,6 +16,24 @@ const SEVERITY_STYLE = {
   HIGH: "text-[var(--danger)]",
 };
 
+// "Stale trend" nudge thresholds (see README's next-steps list) — purely a
+// UI hint, since there's no Celery scheduler yet to keep scores fresh on
+// its own. Doesn't block anything, just tells the official when the number
+// on screen might not reflect today's reality.
+const STALE_AFTER_DAYS = 7;
+
+function staleTrendMessage(risk) {
+  if (!risk) return null;
+  if (risk.last_snapshot_at == null) {
+    return "This institute has never been analyzed — click \"Run AI Analysis\" on the dashboard.";
+  }
+  const days = risk.last_snapshot_age_days;
+  if (days >= STALE_AFTER_DAYS) {
+    return `Last analyzed ${days} day${days === 1 ? "" : "s"} ago — this score may be out of date. Run AI Analysis on the dashboard to refresh it.`;
+  }
+  return `Last analyzed ${days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`}.`;
+}
+
 export default function InstituteDetail() {
   const { id } = useParams();
   const [institute, setInstitute] = useState(null);
@@ -28,6 +46,7 @@ export default function InstituteDetail() {
   const [riskLoading, setRiskLoading] = useState(true);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [exportingHistory, setExportingHistory] = useState(false);
 
   function loadAssignments() {
     client.get(`/inspections/assignments/?institute=${id}`).then(({ data }) => setAssignments(data));
@@ -103,6 +122,17 @@ export default function InstituteDetail() {
     }
   }
 
+  async function handleExportHistory() {
+    setExportingHistory(true);
+    try {
+      await downloadBlob(`/inspections/assignments/export-csv/?institute=${id}`, `inspections-institute-${id}.csv`);
+    } catch {
+      // Non-critical — the table is already visible on-screen either way.
+    } finally {
+      setExportingHistory(false);
+    }
+  }
+
   if (notFound) {
     return (
       <div className="p-8">
@@ -117,6 +147,10 @@ export default function InstituteDetail() {
   if (!institute) {
     return <div className="p-8 text-sm text-[var(--ink-soft)]">Loading…</div>;
   }
+
+  const staleMessage = staleTrendMessage(risk);
+  const isStale = risk && risk.last_snapshot_age_days != null && risk.last_snapshot_age_days >= STALE_AFTER_DAYS;
+  const neverAnalyzed = risk && risk.last_snapshot_at == null;
 
   return (
     <div className="p-8 space-y-6">
@@ -183,8 +217,15 @@ export default function InstituteDetail() {
         </section>
 
         <section className="bg-white border border-[var(--line)]">
-          <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">
-            Inspection history
+          <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium flex items-center justify-between">
+            <span>Inspection history</span>
+            <button
+              onClick={handleExportHistory}
+              disabled={exportingHistory}
+              className="text-xs text-[var(--accent)] underline disabled:opacity-50"
+            >
+              {exportingHistory ? "Exporting…" : "Export CSV"}
+            </button>
           </div>
           <ul className="divide-y divide-[var(--line)]">
             {assignments.length === 0 && (
@@ -222,6 +263,17 @@ export default function InstituteDetail() {
             </button>
           </div>
         </div>
+
+        {staleMessage && (
+          <div
+            className={`px-4 py-2 text-xs border-b border-[var(--line)] ${
+              isStale || neverAnalyzed ? "text-[var(--warn)] bg-[var(--warn)]/5" : "text-[var(--ink-soft)]"
+            }`}
+          >
+            {staleMessage}
+          </div>
+        )}
+
         <div className="p-4 text-sm space-y-3">
           {riskLoading && <p className="text-[var(--ink-soft)]">Computing…</p>}
           {!riskLoading && risk && risk.factors.length === 0 && (
