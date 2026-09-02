@@ -1,9 +1,14 @@
 """
 Django settings for the DoSJE Smart Monitoring Platform.
 
-LOCAL DEV MODE: pure Python + SQLite, no Docker/Postgres/Redis required.
-Everything here is written so that switching to Postgres+PostGIS+Redis later
-(see comments below) is a config change, not a rewrite.
+LOCAL DEV MODE: pure Python + SQLite, no Docker/Postgres required.
+Redis IS now required for two features (Phase 4.5 / 4.7 — see README):
+  - Django Channels (real-time WebSocket push of new AI alerts)
+  - Celery + celery beat (scheduled/automatic risk-engine runs)
+Both are wired up below behind REDIS_URL. If you don't want to run Redis
+yet, see the "Running without Redis" note in PHASE4_COMPLETION.md — the
+app still works, you just lose live push + the scheduled job (same as
+before this phase: poll-on-load + manual "Run AI Analysis" button).
 """
 
 from pathlib import Path
@@ -37,9 +42,10 @@ THIRD_PARTY_APPS = [
     "simple_history",
     "rest_framework.authtoken",
     "storages",
+    "channels",  # Phase 4.5 — real-time dashboard (needs Redis, see CHANNEL_LAYERS below)
     # "rest_framework_gis",     # Re-enable with PostGIS
-    # "channels",               # Re-enable for Phase 4.5 (real-time dashboard)
-    # "django_celery_beat",     # Re-enable for Phase 4.7 (random assignment scheduler)
+    # "django_celery_beat",     # optional: DB-backed periodic task admin UI. Not required —
+    #                            # CELERY_BEAT_SCHEDULE below runs the scheduler without it.
 ]
 
 LOCAL_APPS = [
@@ -87,7 +93,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
-# ASGI_APPLICATION = "config.asgi.application"   # Re-enable when Channels is back (Phase 4.5)
+# Phase 4.5 — Channels is now active, so the ASGI app is the one that
+# actually serves both HTTP and WebSocket traffic when you run:
+#   daphne -b 0.0.0.0 -p 8000 config.asgi:application
+# `manage.py runserver` still works for plain HTTP during normal dev (it
+# will just 404/refuse websocket upgrades) — use daphne (or `manage.py
+# runserver` with an ASGI-aware runner) when you want to test the
+# real-time alerts feed locally. See PHASE4_COMPLETION.md.
+ASGI_APPLICATION = "config.asgi.application"
 
 # ---------------------------------------------------------------------------
 # Database — SQLite for local dev. Zero setup: it's just a file, no server,
@@ -111,6 +124,9 @@ DATABASES = {
 #         "PORT": env("POSTGRES_PORT", default="5432"),
 #     }
 # }
+# This is intentionally still deferred — it's an infrastructure swap (a
+# running Postgres+PostGIS+GDAL stack), not a code change; docker-later/
+# already has the compose service ready for when Docker Desktop is sorted.
 
 # ---------------------------------------------------------------------------
 # Password validation
@@ -195,22 +211,42 @@ if USE_S3:
         MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
 
 # ---------------------------------------------------------------------------
-# Channels / Celery — disabled for now (both need Redis, which we're skipping
-# until Phase 4). Kept here as reference for when we re-enable them.
+# Channels / Redis (Phase 4.5) — real-time push of new AI alerts to the
+# dashboard. See apps/analytics/consumers.py + apps/analytics/routing.py
+# and frontend/src/hooks/useAlertsSocket.js.
 # ---------------------------------------------------------------------------
-# REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-# CHANNEL_LAYERS = {
-#     "default": {
-#         "BACKEND": "channels_redis.core.RedisChannelLayer",
-#         "CONFIG": {"hosts": [REDIS_URL]},
-#     }
-# }
-# CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/1")
-# CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/2")
-# CELERY_ACCEPT_CONTENT = ["json"]
-# CELERY_TASK_SERIALIZER = "json"
-# CELERY_RESULT_SERIALIZER = "json"
-# CELERY_TIMEZONE = TIME_ZONE
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [REDIS_URL]},
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Celery / Redis (Phase 4.7) — scheduled risk-engine runs. Without this,
+# "Run AI Analysis" stays a manual button/CLI (still works fine either way —
+# this just adds an automatic periodic run on top).
+# ---------------------------------------------------------------------------
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+
+# Plain crontab-based periodic schedule — no django_celery_beat DB tables
+# needed for this to work, just `celery -A config beat -l info` running
+# alongside the worker. Runs the full risk engine (Part 22-25) every 6
+# hours automatically instead of waiting for someone to click the button.
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    "run-risk-engine-every-6-hours": {
+        "task": "apps.analytics.tasks.run_risk_analysis_task",
+        "schedule": crontab(minute=0, hour="*/6"),
+    },
+}
 
 # ---------------------------------------------------------------------------
 # CORS (open for local dev; tighten before deploying)

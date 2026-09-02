@@ -8,13 +8,29 @@ const SEVERITY_COLOR = {
 
 /**
  * Phase 9, Part 25/34 — lists open AIAlert rows produced by the risk
- * engine (POST /api/analytics/run/). Replaces the placeholder note that
- * used to sit in Dashboard.jsx before this phase was built.
+ * engine (POST /api/analytics/run/, or the Phase 4.7 scheduled Celery
+ * task). Replaces the placeholder note that used to sit in Dashboard.jsx
+ * before Phase 9 was built.
+ *
+ * Phase 4.5 addition: `live` (from useAlertsSocket) drives a small
+ * "Live"/"Offline" dot in the header — purely informational, the panel
+ * works identically either way since the parent still polls on load too.
  */
-export default function AIAlertsPanel({ alerts, loading }) {
+export default function AIAlertsPanel({ alerts, loading, live }) {
   return (
     <div className="bg-white border border-[var(--line)]">
-      <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">AI alerts</div>
+      <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium flex items-center justify-between">
+        <span>AI alerts</span>
+        {live !== undefined && (
+          <span className="flex items-center gap-1.5 text-[10px] font-normal text-[var(--ink-soft)]">
+            <span
+              className="w-1.5 h-1.5 rounded-full inline-block"
+              style={{ background: live ? "var(--ok)" : "var(--line)" }}
+            />
+            {live ? "Live" : "Offline"}
+          </span>
+        )}
+      </div>
 
       {loading && <div className="p-4 text-sm text-[var(--ink-soft)]">Loading…</div>}
 

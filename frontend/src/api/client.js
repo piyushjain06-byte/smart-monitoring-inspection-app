@@ -32,6 +32,27 @@ export function getAccessToken() {
 
 export const API_BASE_URL = BASE_URL;
 
+/**
+ * Phase 4.5 — WebSocket base URL for the real-time AI alerts feed
+ * (apps/analytics/consumers.py). Derived from VITE_API_BASE_URL by default
+ * (same host, ws(s):// scheme, no "/api" suffix since Channels routes live
+ * at the ASGI app root — see config/routing.py), or set
+ * VITE_WS_BASE_URL explicitly in frontend/.env if your setup differs
+ * (e.g. daphne running on a different port than a proxied /api).
+ */
+function deriveWsBaseUrl() {
+  if (import.meta.env.VITE_WS_BASE_URL) return import.meta.env.VITE_WS_BASE_URL;
+  try {
+    const apiUrl = new URL(BASE_URL);
+    const wsScheme = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsScheme}//${apiUrl.host}`;
+  } catch {
+    return "ws://127.0.0.1:8000";
+  }
+}
+
+export const WS_BASE_URL = deriveWsBaseUrl();
+
 client.interceptors.request.use((config) => {
   const { access } = getTokens();
   if (access) config.headers.Authorization = `Bearer ${access}`;

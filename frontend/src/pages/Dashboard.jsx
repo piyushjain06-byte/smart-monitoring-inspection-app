@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { client } from "../api/client";
 import StatCard from "../components/StatCard";
 import ProjectMap from "../components/ProjectMap";
 import AIAlertsPanel from "../components/AIAlertsPanel";
+import useAlertsSocket from "../hooks/useAlertsSocket";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -35,6 +36,27 @@ export default function Dashboard() {
   }
 
   useEffect(loadData, []);
+
+  // Phase 4.5 — live push: a new alert (or a completed scheduled/manual
+  // analysis run) prepends/refreshes instead of waiting for the next poll.
+  // This is additive on top of the existing load-on-mount behaviour above,
+  // so the dashboard works exactly as before even if Redis/Channels isn't
+  // running (the socket just never connects — see useAlertsSocket.js).
+  const handleSocketMessage = useCallback((event) => {
+    if (event.type === "alert.created") {
+      setAlerts((prev) => {
+        if (prev.some((a) => a.id === event.alert.id)) return prev;
+        return [event.alert, ...prev];
+      });
+      setSummary((prev) => (prev ? { ...prev, open_ai_alerts: prev.open_ai_alerts + 1 } : prev));
+    } else if (event.type === "analysis.completed") {
+      // A full run (manual or scheduled) finished somewhere — stat cards
+      // and the map's risk colouring may have changed, so refresh those.
+      loadData();
+    }
+  }, []);
+
+  const { connected: liveConnected } = useAlertsSocket(handleSocketMessage);
 
   async function handleSurprise() {
     setSurprising(true);
@@ -149,7 +171,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <AIAlertsPanel alerts={alerts} loading={alertsLoading} />
+          <AIAlertsPanel alerts={alerts} loading={alertsLoading} live={liveConnected} />
         </div>
       </div>
     </div>

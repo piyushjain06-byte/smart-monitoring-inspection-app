@@ -14,8 +14,17 @@ opencv-python-headless==4.10.0.84
 scikit-learn==1.5.2
 numpy==2.1.3
 
+# --- Phase 4.5 / 4.7 — Channels + Celery (needs Redis) ---
+# Redis itself is NOT a pip package you "run" — you need a Redis server
+# reachable at REDIS_URL (see .env.example). Locally, either install Redis
+# directly, or just run the `redis` service from docker-later/docker-compose.yml
+# on its own:  docker compose -f docker-later/docker-compose.yml up redis
+channels==4.1.0
+channels-redis==4.2.0
+daphne==4.1.2
+celery==5.4.0
+redis==5.0.8
+
 # --- Added back in later phases, once we're ready for them ---
 # psycopg2-binary       # Phase: switching from SQLite to Postgres+PostGIS
 # djangorestframework-gis
-# channels + channels-redis   # Phase 4.5: real-time WebSocket dashboard (needs Redis)
-# celery + redis + django-celery-beat   # Phase 4.7: scheduled random-assignment jobs (needs Redis)
