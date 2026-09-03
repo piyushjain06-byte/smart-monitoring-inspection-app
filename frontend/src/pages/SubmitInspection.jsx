@@ -18,6 +18,7 @@ export default function SubmitInspection() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
   const [done, setDone] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
 
   useEffect(() => {
     client
@@ -35,13 +36,59 @@ export default function SubmitInspection() {
   }
 
   function handleFilesChange(e) {
-    const selected = Array.from(e.target.files);
+    const selected = Array.from(e.target.files).filter((file) => file.type.startsWith("image/"));
     setFiles(selected);
     setPreviews(
       selected.map((file) =>
         file.type.startsWith("image/") ? { name: file.name, url: URL.createObjectURL(file) } : { name: file.name, url: null }
       )
     );
+  }
+
+  function watermarkImage(file, lat, lon) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        const timestamp = new Intl.DateTimeFormat("en-IN", {
+          dateStyle: "medium", timeStyle: "medium", timeZone: "Asia/Kolkata",
+        }).format(new Date());
+        const lines = [
+          `Captured: ${timestamp} IST (${new Date().toISOString()} UTC)`,
+          `GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)}`,
+          `Inspector: ${assignment.officer} | Assignment: ${id}`,
+        ];
+        const fontSize = Math.max(14, Math.round(canvas.width / 45));
+        const lineHeight = fontSize * 1.35;
+        const padding = fontSize * 0.7;
+        context.font = `${fontSize}px sans-serif`;
+        const boxHeight = lines.length * lineHeight + padding * 2;
+        context.fillStyle = "rgba(0, 0, 0, 0.7)";
+        context.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
+        context.fillStyle = "#ffffff";
+        lines.forEach((line, index) => {
+          context.fillText(line, padding, canvas.height - boxHeight + padding + (index + 1) * lineHeight - fontSize * 0.2);
+        });
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(objectUrl);
+          if (!blob) {
+            reject(new Error("Could not watermark evidence photo."));
+            return;
+          }
+          resolve(new File([blob], file.name, { type: file.type, lastModified: Date.now() }));
+        }, file.type || "image/jpeg", 0.92);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error(`Could not read evidence photo ${file.name}.`));
+      };
+      image.src = objectUrl;
+    });
   }
 
   function renderField(field) {
@@ -113,6 +160,7 @@ export default function SubmitInspection() {
   function handleSubmit() {
     setSubmitError("");
     if (!navigator.geolocation) {
+      setLocationDenied(true);
       setSubmitError("Geolocation isn't supported on this device/browser — required to verify you're on-site.");
       return;
     }
@@ -121,6 +169,7 @@ export default function SubmitInspection() {
     navigator.geolocation.getCurrentPosition(
       (pos) => doSubmit(pos.coords.latitude, pos.coords.longitude),
       (err) => {
+        setLocationDenied(true);
         setSubmitting(false);
         setSubmitError(`Could not get your location: ${err.message}`);
       }
@@ -135,9 +184,9 @@ export default function SubmitInspection() {
     fd.append("submitted_longitude", lon);
     fd.append("notes", notes);
     fd.append("answers", JSON.stringify(answers));
-    files.forEach((f) => fd.append("evidence", f));
-
     try {
+      const watermarkedFiles = await Promise.all(files.map((file) => watermarkImage(file, lat, lon)));
+      watermarkedFiles.forEach((file) => fd.append("evidence", file));
       await client.post("/inspections/reports/", fd, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (evt) => {
@@ -216,7 +265,7 @@ export default function SubmitInspection() {
           <input
             type="file"
             multiple
-            accept="image/*,video/*"
+            accept="image/*"
             capture="environment"
             onChange={handleFilesChange}
             className="text-sm"
@@ -255,7 +304,7 @@ export default function SubmitInspection() {
 
       <button
         onClick={handleSubmit}
-        disabled={submitting}
+        disabled={submitting || locationDenied || !navigator.geolocation}
         className="bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors disabled:opacity-60"
       >
         {submitting ? "Submitting…" : "Get Location & Submit"}
