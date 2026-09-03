@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { client, downloadBlob } from "../api/client";
+import { Video, X } from "lucide-react";
+import { client, downloadBlob, initiateSurpriseVC } from "../api/client";
 import CctvPanel from "../components/CctvPanel";
 import RiskTrendChart from "../components/RiskTrendChart";
+import useAlertsSocket from "../hooks/useAlertsSocket";
 
 const STATUS_STYLE = {
   PENDING: "text-[var(--warn)]",
@@ -173,6 +175,8 @@ export default function InstituteDetail() {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [exportingHistory, setExportingHistory] = useState(false);
+  const [vcRoom, setVcRoom] = useState(null);
+  const [vcAlert, setVcAlert] = useState(null);
 
   function loadInstitute() {
     client.get(`/registry/institutes/${id}/`).then(({ data }) => setInstitute(data)).catch(() => setNotFound(true));
@@ -201,6 +205,12 @@ export default function InstituteDetail() {
     loadRisk();
     loadHistory();
   }, [id]);
+
+  useAlertsSocket((event) => {
+    if (event.type === "SURPRISE_VC_ALERT" && String(event.institute_id) === String(id)) {
+      setVcAlert(event);
+    }
+  }, id);
 
   function startEditInstitute() {
     setInstForm({
@@ -245,6 +255,16 @@ export default function InstituteDetail() {
       setAssignResult({ ok: false, message: err.response?.data?.detail || "Could not assign an inspection." });
     } finally {
       setAssigning(false);
+    }
+  }
+
+  async function handleInitiateVC() {
+    setVcAlert(null);
+    try {
+      const { data } = await initiateSurpriseVC(id);
+      setVcRoom(data.room_name);
+    } catch (err) {
+      setVcAlert({ error: err.response?.data?.detail || "Could not initiate the surprise video call." });
     }
   }
 
@@ -316,8 +336,36 @@ export default function InstituteDetail() {
             className="bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors disabled:opacity-60">
             {assigning ? "Assigning…" : "Assign Inspection"}
           </button>
+          <button onClick={handleInitiateVC}
+            className="inline-flex items-center gap-2 bg-[var(--danger)] text-white text-sm font-medium px-4 py-2 hover:opacity-90 transition-opacity">
+            <Video size={16} aria-hidden="true" />
+            Initiate Surprise VC
+          </button>
         </div>
       </div>
+
+      {vcAlert && (
+        <div role="alert" className={`flex items-center justify-between gap-4 border px-4 py-3 text-sm ${vcAlert.error ? "border-[var(--danger)] text-[var(--danger)]" : "border-[var(--warn)] bg-[var(--warn)]/10 text-[var(--ink)]"}`}>
+          <span>{vcAlert.error || "A surprise video call has been initiated for this institute."}</span>
+          {!vcAlert.error && <button onClick={() => { setVcRoom(vcAlert.room_name); setVcAlert(null); }} className="shrink-0 bg-[var(--ink)] text-white px-3 py-1.5 font-medium">Join Call Now</button>}
+          <button onClick={() => setVcAlert(null)} aria-label="Dismiss video call notification" className="shrink-0 text-[var(--ink-soft)]"><X size={17} /></button>
+        </div>
+      )}
+
+      {vcRoom && (
+        <section className="bg-black border border-[var(--line)]">
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[var(--line)] text-sm font-medium">
+            <span>Surprise video call</span>
+            <button onClick={() => setVcRoom(null)} className="text-[var(--accent)] underline">Close call</button>
+          </div>
+          <iframe
+            title="Surprise video call"
+            src={`https://meet.jit.si/${encodeURIComponent(vcRoom)}`}
+            allow="camera; microphone; fullscreen; display-capture"
+            className="w-full aspect-video"
+          />
+        </section>
+      )}
 
       {editingInstitute && (
         <form onSubmit={handleSaveInstitute} className="bg-white border border-[var(--line)] p-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">

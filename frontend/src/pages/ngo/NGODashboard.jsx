@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Video, X } from "lucide-react";
 import { client } from "../../api/client";
 import StatCard from "../../components/StatCard";
+import useAlertsSocket from "../../hooks/useAlertsSocket";
 
 const STATUS_STYLE = {
   PENDING: "text-[var(--warn)]",
@@ -28,6 +30,12 @@ export default function NGODashboard() {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [vcAlert, setVcAlert] = useState(null);
+  const [vcRoom, setVcRoom] = useState(null);
+
+  useAlertsSocket((event) => {
+    if (event.type === "SURPRISE_VC_ALERT") setVcAlert(event);
+  });
 
   useEffect(() => {
     Promise.all([
@@ -54,6 +62,26 @@ export default function NGODashboard() {
           Institutes and projects you administer.
         </p>
       </header>
+
+      {vcAlert && (
+        <div role="alert" className="flex items-center justify-between gap-4 border border-[var(--danger)] bg-[var(--danger)]/10 px-4 py-3 text-sm">
+          <span className="flex items-center gap-2 font-medium"><Video size={17} aria-hidden="true" /> Surprise video call requested for {vcAlert.institute_name}.</span>
+          <span className="flex items-center gap-3 shrink-0">
+            <button onClick={() => { setVcRoom(vcAlert.room_name); setVcAlert(null); }} className="bg-[var(--danger)] text-white px-3 py-1.5 font-medium">Join Call Now</button>
+            <button onClick={() => setVcAlert(null)} aria-label="Dismiss video call notification"><X size={17} /></button>
+          </span>
+        </div>
+      )}
+
+      {vcRoom && (
+        <section className="bg-black border border-[var(--line)]">
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[var(--line)] text-sm font-medium">
+            <span>Surprise video call</span>
+            <button onClick={() => setVcRoom(null)} className="text-[var(--accent)] underline">Close call</button>
+          </div>
+          <iframe title="Surprise video call" src={`https://meet.jit.si/${encodeURIComponent(vcRoom)}`} allow="camera; microphone; fullscreen; display-capture" className="w-full aspect-video" />
+        </section>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Institutes" value={summary?.total_institutes ?? "—"} />
