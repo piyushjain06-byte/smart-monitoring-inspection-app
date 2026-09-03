@@ -32,6 +32,9 @@ export function getAccessToken() {
 
 export const API_BASE_URL = BASE_URL;
 
+export const autoAssignInspections = (params = { radius_km: 50, due_in_hours: 4 }) =>
+  client.post("/inspections/assignments/auto-assign/", params);
+
 /**
  * Phase 4.5 — WebSocket base URL for the real-time AI alerts feed
  * (apps/analytics/consumers.py). Derived from VITE_API_BASE_URL by default

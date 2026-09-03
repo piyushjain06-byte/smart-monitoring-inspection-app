@@ -109,7 +109,9 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
         data = serializer.validated_data
 
         if "institute" not in data:
-            result = run_auto_assignment(radius_km=data.get("radius_km"))
+            result = run_auto_assignment(
+                radius_km=data.get("radius_km"), due_in_hours=data.get("due_in_hours"),
+            )
             return Response({
                 "evaluated": result["evaluated"], "assigned": result["assigned"], "skipped": result["skipped"],
                 "assignments": InspectionAssignmentSerializer(result["assignments"], many=True).data,

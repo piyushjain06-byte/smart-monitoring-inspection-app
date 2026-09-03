@@ -114,6 +114,7 @@ class AutoAssignRequestSerializer(serializers.Serializer):
     )
     due_in_days = serializers.IntegerField(required=False, min_value=1, default=7)
     radius_km = serializers.FloatField(required=False, min_value=1, max_value=500)
+    due_in_hours = serializers.FloatField(required=False, min_value=2, max_value=24)
 
 
 class InspectionReportCreateSerializer(serializers.Serializer):

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { client } from "../../api/client";
+import { ClipboardCheck, LoaderCircle, RefreshCw } from "lucide-react";
+import { autoAssignInspections, client } from "../../api/client";
 
-const TABS = ["Schemes", "NGOs", "Staff", "Beneficiaries"];
+const TABS = ["Schemes", "NGOs", "Staff", "Beneficiaries", "Inspections"];
 
 // ---------------------------------------------------------------------------
 // Generic list+form CRUD block. Each tab below configures this once instead
@@ -274,6 +275,116 @@ function BeneficiariesTab() {
   );
 }
 
+function InspectionsTab() {
+  const [radiusKm, setRadiusKm] = useState(50);
+  const [dueInHours, setDueInHours] = useState(4);
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  function loadAssignments() {
+    setLoading(true);
+    client.get("/inspections/assignments/")
+      .then(({ data }) => setAssignments(Array.isArray(data) ? data : data.results || []))
+      .catch(() => setFeedback({ ok: false, message: "Could not load inspection assignments." }))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(loadAssignments, []);
+
+  async function handleAutoAssign() {
+    setRunning(true);
+    setFeedback(null);
+    try {
+      const { data } = await autoAssignInspections({
+        radius_km: Number(radiusKm),
+        due_in_hours: Number(dueInHours),
+      });
+      setFeedback({
+        ok: true,
+        message: `${data.assigned ?? 0} inspection(s) assigned. ${data.skipped ?? 0} institute(s) skipped.`,
+      });
+      loadAssignments();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setFeedback({ ok: false, message: typeof detail === "string" ? detail : "Could not run automated duty assignment." });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="bg-white border border-[var(--line)] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--ink)] flex items-center gap-2">
+              <ClipboardCheck size={18} aria-hidden="true" />
+              Automated Inspector Duty Assignment
+            </h2>
+            <p className="text-sm text-[var(--ink-soft)] mt-1 max-w-2xl">
+              Randomly assigns high-risk or overdue institutes to nearby officers while applying workload and anti-collusion checks.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAutoAssign}
+            disabled={running}
+            className="inline-flex items-center gap-2 bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors disabled:opacity-60"
+          >
+            {running ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <ClipboardCheck size={16} aria-hidden="true" />}
+            {running ? "Assigning…" : "Run AI Duty Assignment"}
+          </button>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+          <label className="text-sm space-y-1">
+            <span className="block text-[var(--ink-soft)]">Radius (km)</span>
+            <input type="number" min="1" max="500" step="1" value={radiusKm} onChange={(e) => setRadiusKm(e.target.value)} className="w-full border border-[var(--line)] px-3 py-2" />
+          </label>
+          <label className="text-sm space-y-1">
+            <span className="block text-[var(--ink-soft)]">Short-notice due window (hours)</span>
+            <input type="number" min="2" max="24" step="1" value={dueInHours} onChange={(e) => setDueInHours(e.target.value)} className="w-full border border-[var(--line)] px-3 py-2" />
+          </label>
+        </div>
+
+        {feedback && (
+          <div role="status" className={`mt-4 text-sm border px-3 py-2 ${feedback.ok ? "border-[var(--ok)] text-[var(--ok)]" : "border-[var(--danger)] text-[var(--danger)]"}`}>
+            {feedback.message}
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white border border-[var(--line)]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)]">
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Inspection assignments</h2>
+          <button type="button" onClick={loadAssignments} disabled={loading} className="inline-flex items-center gap-1 text-sm text-[var(--accent)] disabled:opacity-60" title="Refresh assignments">
+            <RefreshCw size={15} aria-hidden="true" /> Refresh
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-[var(--line)] text-left text-[var(--ink-soft)]"><th className="px-4 py-2 font-medium">Institute</th><th className="px-4 py-2 font-medium">Officer</th><th className="px-4 py-2 font-medium">Due</th><th className="px-4 py-2 font-medium">Status</th></tr></thead>
+            <tbody>
+              {loading && <tr><td colSpan="4" className="px-4 py-4 text-[var(--ink-soft)]">Loading…</td></tr>}
+              {!loading && assignments.length === 0 && <tr><td colSpan="4" className="px-4 py-4 text-[var(--ink-soft)]">No assignments yet.</td></tr>}
+              {!loading && assignments.map((assignment) => (
+                <tr key={assignment.id} className="border-b border-[var(--line)] last:border-0">
+                  <td className="px-4 py-2.5">{assignment.institute_name}</td>
+                  <td className="px-4 py-2.5">{assignment.officer_name}</td>
+                  <td className="px-4 py-2.5">{assignment.scheduled_at ? new Date(assignment.scheduled_at).toLocaleString() : assignment.due_date}</td>
+                  <td className="px-4 py-2.5">{assignment.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function Manage() {
   const [tab, setTab] = useState("Schemes");
 
@@ -304,6 +415,7 @@ export default function Manage() {
       {tab === "NGOs" && <NGOsTab />}
       {tab === "Staff" && <StaffTab />}
       {tab === "Beneficiaries" && <BeneficiariesTab />}
+      {tab === "Inspections" && <InspectionsTab />}
     </div>
   );
 }
