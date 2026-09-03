@@ -1,14 +1,16 @@
 import csv
+import uuid
 
 from django.db.models import Max
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.permissions import IsOfficial
+from apps.core.permissions import IsOfficial, IsOfficialOrFieldOfficer
 from apps.inspections.models import InspectionAssignment
 
 from .models import Beneficiary, Institute, NGO, Project, Scheme, Staff
@@ -40,6 +42,11 @@ class InstituteViewSet(viewsets.ModelViewSet):
     serializer_class = InstituteSerializer
     permission_classes = [IsOfficial]
 
+    def get_permissions(self):
+        if self.action == "initiate_vc":
+            return [IsOfficialOrFieldOfficer()]
+        return super().get_permissions()
+
     def get_queryset(self):
         """
         Role-based scoping (Part 4.1 / Part 10 — a district authority should
@@ -54,6 +61,38 @@ class InstituteViewSet(viewsets.ModelViewSet):
         if user.role == "STATE_AUTHORITY" and user.state:
             return qs.filter(state=user.state)
         return qs
+
+    @action(detail=True, methods=["post"], url_path="initiate-vc")
+    def initiate_vc(self, request, pk=None):
+        """Create a private, auditable Jitsi room and notify institute users."""
+        institute = self.get_object()
+        initiated_at = timezone.now()
+        room_name = f"sih-dosje-call-{institute.id}-{int(initiated_at.timestamp())}-{uuid.uuid4().hex[:12]}"
+        payload = {
+            "type": "SURPRISE_VC_ALERT",
+            "room_name": room_name,
+            "initiated_by": {
+                "id": request.user.id,
+                "name": request.user.get_full_name() or request.user.username,
+            },
+            "timestamp": initiated_at.isoformat(),
+            "institute_id": institute.id,
+            "institute_name": institute.name,
+        }
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+
+            channel_layer = get_channel_layer()
+            if channel_layer is not None:
+                async_to_sync(channel_layer.group_send)(
+                    f"institute_{institute.id}",
+                    {"type": "surprise.vc.alert", "payload": payload},
+                )
+        except Exception:
+            # Room creation remains usable when Redis is unavailable.
+            pass
+        return Response({"room_name": room_name, "timestamp": payload["timestamp"], "institute_id": institute.id})
 
     @action(detail=False, methods=["get"], url_path="export-csv")
     def export_csv(self, request):

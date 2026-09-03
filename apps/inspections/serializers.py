@@ -97,6 +97,7 @@ class InspectionAssignmentSerializer(serializers.ModelSerializer):
             "institute_latitude", "institute_longitude",
             "officer", "officer_name", "template", "template_name",
             "assigned_at", "due_date", "status", "has_report",
+            "scheduled_at",
         ]
 
     def get_officer_name(self, obj):
@@ -107,11 +108,13 @@ class InspectionAssignmentSerializer(serializers.ModelSerializer):
 
 
 class AutoAssignRequestSerializer(serializers.Serializer):
-    institute = serializers.PrimaryKeyRelatedField(queryset=Institute.objects.all())
+    institute = serializers.PrimaryKeyRelatedField(queryset=Institute.objects.all(), required=False)
     template = serializers.PrimaryKeyRelatedField(
         queryset=InspectionTemplate.objects.filter(is_active=True), required=False
     )
     due_in_days = serializers.IntegerField(required=False, min_value=1, default=7)
+    radius_km = serializers.FloatField(required=False, min_value=1, max_value=500)
+    due_in_hours = serializers.FloatField(required=False, min_value=2, max_value=24)
 
 
 class InspectionReportCreateSerializer(serializers.Serializer):

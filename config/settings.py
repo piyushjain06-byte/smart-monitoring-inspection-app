@@ -246,9 +246,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.analytics.tasks.run_risk_analysis_task",
         "schedule": crontab(minute=0, hour="*/6"),
     },
+    "auto-assign-surprise-inspections-daily": {
+        "task": "apps.inspections.tasks.auto_assign_inspections_task",
+        "schedule": crontab(minute=0, hour=6),
+    },
 }
 
 # ---------------------------------------------------------------------------
 # CORS (open for local dev; tighten before deploying)
 # ---------------------------------------------------------------------------
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+AUTO_ASSIGN_RADIUS_KM = env.float("AUTO_ASSIGN_RADIUS_KM", default=50)
+AUTO_ASSIGN_NOTICE_HOURS = env.float("AUTO_ASSIGN_NOTICE_HOURS", default=3)

@@ -71,6 +71,13 @@ class IsOfficial(BasePermission):
         return is_official(request.user)
 
 
+class IsOfficialOrFieldOfficer(BasePermission):
+    message = "This is only available to officials or field officers."
+
+    def has_permission(self, request, view):
+        return is_official(request.user) or is_field_officer(request.user)
+
+
 class IsNGOOrIncharge(BasePermission):
     """Restricts a view to the NGO/Institute Admin or Project Incharge portal."""
     message = "This is only available to NGO admins or project incharges."

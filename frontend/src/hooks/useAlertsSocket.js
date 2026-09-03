@@ -15,7 +15,7 @@ const RECONNECT_DELAY_MS = 3000;
  * poll-on-load behaviour (already in Dashboard.jsx from Phase 3/9) is
  * completely unaffected — this is additive, not a replacement.
  */
-export default function useAlertsSocket(onMessage) {
+export default function useAlertsSocket(onMessage, instituteId = null) {
   const [connected, setConnected] = useState(false);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
@@ -29,7 +29,8 @@ export default function useAlertsSocket(onMessage) {
       const token = getAccessToken();
       if (!token || cancelled) return;
 
-      socket = new WebSocket(`${WS_BASE_URL}/ws/analytics/alerts/?token=${token}`);
+      const instituteQuery = instituteId ? `&institute=${encodeURIComponent(instituteId)}` : "";
+      socket = new WebSocket(`${WS_BASE_URL}/ws/analytics/alerts/?token=${token}${instituteQuery}`);
 
       socket.onopen = () => setConnected(true);
 
@@ -57,7 +58,7 @@ export default function useAlertsSocket(onMessage) {
       clearTimeout(reconnectTimer);
       socket?.close();
     };
-  }, []);
+  }, [instituteId]);
 
   return { connected };
 }

@@ -21,7 +21,7 @@ from .serializers import (
     InspectionReportCreateSerializer,
     InspectionTemplateSerializer,
 )
-from .services import auto_assign, select_surprise_institute
+from .services import auto_assign, run_auto_assignment, select_surprise_institute
 
 
 class InspectionTemplateViewSet(viewsets.ModelViewSet):
@@ -107,6 +107,15 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = AutoAssignRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        if "institute" not in data:
+            result = run_auto_assignment(
+                radius_km=data.get("radius_km"), due_in_hours=data.get("due_in_hours"),
+            )
+            return Response({
+                "evaluated": result["evaluated"], "assigned": result["assigned"], "skipped": result["skipped"],
+                "assignments": InspectionAssignmentSerializer(result["assignments"], many=True).data,
+            }, status=status.HTTP_201_CREATED)
 
         try:
             assignment, breakdown = auto_assign(

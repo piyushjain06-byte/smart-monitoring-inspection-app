@@ -68,6 +68,7 @@ class InspectionAssignment(models.Model):
     template = models.ForeignKey(InspectionTemplate, on_delete=models.PROTECT, related_name="assignments")
 
     assigned_at = models.DateTimeField(auto_now_add=True)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
     due_date = models.DateField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
 

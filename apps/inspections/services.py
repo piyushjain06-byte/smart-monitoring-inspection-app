@@ -15,6 +15,7 @@ simple... Later you can make this an optimization/AI system"):
 """
 import random
 import uuid
+import logging
 from datetime import timedelta
 
 from django.conf import settings
@@ -25,6 +26,8 @@ from apps.registry.models import Institute
 
 from .models import InspectionAssignment, InspectionTemplate
 
+logger = logging.getLogger(__name__)
+
 # Officers at or above this many PENDING assignments are deprioritised
 # (not excluded outright — better to give someone a 6th job than leave an
 # institute completely unassigned if every officer is already busy).
@@ -34,18 +37,50 @@ WORKLOAD_SOFT_CAP = 5
 # constant so it's obvious where to tune it: "1 pending inspection" is
 # currently treated as being as undesirable as ~15 km of extra travel.
 WORKLOAD_PENALTY_KM_EQUIVALENT = 15
+ANTI_COLLUSION_DAYS = 180
 
 
 def _eligible_officers():
     """Active users who actually do field work (Part 4.1's is_field_role)."""
-    User = settings.AUTH_USER_MODEL
     from django.contrib.auth import get_user_model
 
     UserModel = get_user_model()
     return UserModel.objects.filter(
         role__in=["INSPECTION_OFFICER", "PMU_TEAM"],
         is_active=True,
+        base_latitude__isnull=False,
+        base_longitude__isnull=False,
     )
+
+
+def eligible_officers_for_institute(institute, scheduled_at=None, radius_km=None):
+    """Return officers passing proximity, same-day workload, and NGO checks."""
+    if institute.latitude is None or institute.longitude is None:
+        return []
+    scheduled_at = scheduled_at or (timezone.now() + timedelta(hours=3))
+    radius_km = radius_km or getattr(settings, "AUTO_ASSIGN_RADIUS_KM", 50)
+    scheduled_date = timezone.localtime(scheduled_at).date()
+    cutoff = timezone.now() - timedelta(days=ANTI_COLLUSION_DAYS)
+    eligible = []
+    for officer in _eligible_officers():
+        distance_km = distance_meters(
+            officer.base_latitude, officer.base_longitude,
+            institute.latitude, institute.longitude,
+        ) / 1000.0
+        if distance_km > radius_km:
+            continue
+        if InspectionAssignment.objects.filter(
+            officer=officer, status=InspectionAssignment.Status.PENDING,
+            due_date=scheduled_date,
+        ).exists():
+            continue
+        if InspectionAssignment.objects.filter(
+            officer=officer, institute__ngo_id=institute.ngo_id,
+            assigned_at__gte=cutoff,
+        ).exists():
+            continue
+        eligible.append((officer, distance_km))
+    return eligible
 
 
 def score_officers_for_institute(institute: Institute):
@@ -130,6 +165,86 @@ def auto_assign(institute: Institute, template: InspectionTemplate = None, due_i
         weight_snapshot=breakdown,
     )
     return assignment, breakdown
+
+
+def _priority_institutes():
+    """Find high-risk or overdue institutes without pending work."""
+    from apps.analytics.models import RiskSnapshot
+
+    high_risk_ids = set()
+    for institute_id in RiskSnapshot.objects.filter(
+        institute__is_active=True,
+    ).values_list("institute_id", flat=True).distinct():
+        latest = RiskSnapshot.objects.filter(institute_id=institute_id).first()
+        if latest and latest.severity in {"HIGH", "CRITICAL"}:
+            high_risk_ids.add(institute_id)
+    overdue_ids = set(InspectionAssignment.objects.filter(
+        status=InspectionAssignment.Status.OVERDUE,
+        institute__is_active=True,
+    ).values_list("institute_id", flat=True))
+    pending_ids = InspectionAssignment.objects.filter(
+        status=InspectionAssignment.Status.PENDING,
+    ).values("institute_id")
+    return Institute.objects.filter(
+        is_active=True, id__in=high_risk_ids | overdue_ids,
+    ).exclude(id__in=pending_ids).order_by("id")
+
+
+def notify_assignment_created(assignment):
+    """Best-effort inspector notification through the existing Channels layer."""
+    logger.info(
+        "Surprise inspection assigned: assignment=%s officer=%s institute=%s scheduled_at=%s",
+        assignment.id, assignment.officer_id, assignment.institute_id, assignment.scheduled_at,
+    )
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        from apps.analytics.consumers import ALERTS_GROUP
+
+        channel_layer = get_channel_layer()
+        if channel_layer is not None:
+            async_to_sync(channel_layer.group_send)(
+                ALERTS_GROUP,
+                {
+                    "type": "assignment.created",
+                    "assignment_id": assignment.id,
+                    "officer_id": assignment.officer_id,
+                    "institute_id": assignment.institute_id,
+                    "scheduled_at": assignment.scheduled_at.isoformat(),
+                },
+            )
+    except Exception:
+        pass
+
+
+def run_auto_assignment(radius_km=None, due_in_hours=None, institute_ids=None):
+    """Create random surprise assignments for all eligible priority institutes."""
+    template = InspectionTemplate.objects.filter(is_active=True).first()
+    institutes = _priority_institutes()
+    if institute_ids:
+        institutes = institutes.filter(id__in=institute_ids)
+    if template is None:
+        return {"evaluated": institutes.count(), "assigned": 0, "skipped": institutes.count(), "assignments": []}
+
+    due_in_hours = due_in_hours or getattr(settings, "AUTO_ASSIGN_NOTICE_HOURS", 3)
+    scheduled_at = timezone.now() + timedelta(hours=due_in_hours)
+    assignments = []
+    skipped = 0
+    for institute in institutes:
+        candidates = eligible_officers_for_institute(institute, scheduled_at, radius_km)
+        if not candidates:
+            skipped += 1
+            continue
+        officer, distance_km = random.choice(candidates)
+        assignment = InspectionAssignment.objects.create(
+            officer=officer, institute=institute, template=template,
+            scheduled_at=scheduled_at, due_date=scheduled_at.date(),
+            random_seed=uuid.uuid4().hex,
+            weight_snapshot={"distance_km": round(distance_km, 2), "radius_km": radius_km or getattr(settings, "AUTO_ASSIGN_RADIUS_KM", 50)},
+        )
+        notify_assignment_created(assignment)
+        assignments.append(assignment)
+    return {"evaluated": institutes.count(), "assigned": len(assignments), "skipped": skipped, "assignments": assignments}
 
 
 def select_surprise_institute():
