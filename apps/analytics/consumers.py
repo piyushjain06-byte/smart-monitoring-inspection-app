@@ -47,3 +47,12 @@ class AIAlertConsumer(AsyncWebsocketConsumer):
             "type": "analysis.completed",
             "summary": event["summary"],
         }))
+
+    async def assignment_created(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "assignment.created",
+            "assignment_id": event["assignment_id"],
+            "officer_id": event["officer_id"],
+            "institute_id": event["institute_id"],
+            "scheduled_at": event["scheduled_at"],
+        }))

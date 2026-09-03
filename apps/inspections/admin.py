@@ -29,7 +29,7 @@ class InspectionTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(InspectionAssignment)
 class InspectionAssignmentAdmin(admin.ModelAdmin):
-    list_display = ("institute", "officer", "template", "due_date", "status", "assigned_at")
+    list_display = ("institute", "officer", "template", "scheduled_at", "due_date", "status", "assigned_at")
     list_filter = ("status", "template")
     search_fields = ("institute__name", "officer__username")
 
