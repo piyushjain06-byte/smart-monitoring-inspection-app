@@ -53,6 +53,7 @@ class Camera(models.Model):
     )
 
     is_active = models.BooleanField(default=True)
+    is_maintenance = models.BooleanField(default=False)
     last_online = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -68,10 +69,23 @@ class Camera(models.Model):
     def status(self) -> str:
         if not self.is_active:
             return "DISABLED"
+        if self.is_maintenance:
+            return "MAINTENANCE"
         if self.last_online is None:
             return "OFFLINE"
         age_seconds = (timezone.now() - self.last_online).total_seconds()
         return "ONLINE" if age_seconds <= OFFLINE_THRESHOLD_SECONDS else "OFFLINE"
+
+    def offline_hours(self) -> float:
+        """Return the current consecutive offline duration in hours."""
+        if self.status != "OFFLINE" or self.last_online is None:
+            return 0.0
+        return max(0.0, (timezone.now() - self.last_online).total_seconds() / 3600)
+
+    @property
+    def last_ping(self):
+        """Backward-compatible name for the camera heartbeat timestamp."""
+        return self.last_online
 
     def mark_seen(self):
         """Called whenever we successfully read a frame (stream or ping)."""

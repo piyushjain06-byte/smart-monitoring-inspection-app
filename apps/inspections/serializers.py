@@ -56,7 +56,8 @@ class InspectionReportSerializer(serializers.ModelSerializer):
         fields = [
             "id", "assignment", "institute", "institute_name", "officer_name", "template_name",
             "submitted_at", "submitted_latitude", "submitted_longitude",
-            "location_verified", "answers", "answers_display", "overall_score",
+            "distance_from_site_meters", "is_geofence_verified", "location_verified",
+            "answers", "answers_display", "overall_score",
             "notes", "evidence_items",
         ]
 
@@ -129,4 +130,20 @@ class InspectionReportCreateSerializer(serializers.Serializer):
         assignment = data["assignment"]
         if getattr(assignment, "status", None) == "SUBMITTED":
             raise serializers.ValidationError("Assignment already submitted")
+        latitude = data.get("submitted_latitude")
+        longitude = data.get("submitted_longitude")
+        institute = assignment.institute
+        if None in (latitude, longitude, institute.latitude, institute.longitude):
+            raise serializers.ValidationError("A valid GPS location is required to submit an inspection.")
+        from apps.core.geo import distance_meters
+
+        distance = distance_meters(latitude, longitude, institute.latitude, institute.longitude)
+        if distance > 200:
+            raise serializers.ValidationError(
+                "Submission rejected: You must be physically within 200 meters of the institute facility."
+            )
+        for evidence_file in data.get("evidence", []):
+            if not (evidence_file.content_type or "").startswith("image/"):
+                raise serializers.ValidationError("Evidence files must be images captured by the device camera.")
+        data["distance_from_site_meters"] = round(distance, 2)
         return data

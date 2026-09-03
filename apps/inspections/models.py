@@ -96,6 +96,10 @@ class InspectionReport(models.Model):
     # institute's registered lat/lng via apps.core.geo.is_within_radius().
     submitted_latitude = models.FloatField(null=True, blank=True)
     submitted_longitude = models.FloatField(null=True, blank=True)
+    distance_from_site_meters = models.FloatField(null=True, blank=True)
+    is_geofence_verified = models.BooleanField(
+        default=False, help_text="True when the submitted location is within the allowed site radius",
+    )
     location_verified = models.BooleanField(
         default=False, help_text="True if submitted location was within the allowed radius of the institute",
     )

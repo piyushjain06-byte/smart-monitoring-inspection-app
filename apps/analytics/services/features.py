@@ -46,6 +46,7 @@ def collect_features(institute: Institute) -> dict:
     camera_online_ratio = (
         sum(1 for c in cameras if c.status == "ONLINE") / len(cameras) if cameras else None
     )
+    offline_hours = [c.offline_hours() for c in cameras]
 
     # --- Most recent submitted inspection score ---
     latest_report = (
@@ -71,6 +72,8 @@ def collect_features(institute: Institute) -> dict:
         "attendance_sample_size": total_marks,
         "camera_online_ratio": camera_online_ratio,
         "camera_count": len(cameras),
+        "cctv_offline_over_48_count": sum(hours > 48 for hours in offline_hours),
+        "cctv_max_offline_hours": round(max(offline_hours, default=0.0), 1),
         "latest_inspection_score": latest_inspection_score,
         "inspection_frequency": inspection_frequency,
         "recent_high_alerts": recent_high_alerts,

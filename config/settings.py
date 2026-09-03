@@ -246,6 +246,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.analytics.tasks.run_risk_analysis_task",
         "schedule": crontab(minute=0, hour="*/6"),
     },
+    "audit-cctv-status-every-hour": {
+        "task": "apps.analytics.tasks.audit_cctv_status",
+        "schedule": crontab(minute=0),
+    },
     "auto-assign-surprise-inspections-daily": {
         "task": "apps.inspections.tasks.auto_assign_inspections_task",
         "schedule": crontab(minute=0, hour=6),

@@ -9,7 +9,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.geo import is_within_radius
 from apps.core.permissions import IsOfficial, is_official
 
 from .models import InspectionReport, InspectionAssignment, Evidence, InspectionTemplate, InspectionField
@@ -230,15 +229,11 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
             assignment=assignment,
             submitted_latitude=data.get("submitted_latitude"),
             submitted_longitude=data.get("submitted_longitude"),
+            distance_from_site_meters=data["distance_from_site_meters"],
+            is_geofence_verified=True,
+            location_verified=True,
             answers=data.get("answers", {}),
             notes=data.get("notes", ""),
-        )
-
-        # Geofence check
-        inst = assignment.institute
-        report.location_verified = is_within_radius(
-            report.submitted_latitude, report.submitted_longitude,
-            inst.latitude, inst.longitude,
         )
 
         # Compute overall score (simple heuristic)
@@ -272,7 +267,12 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
         # Save evidence files
         files = request.FILES.getlist("evidence")
         for f in files:
-            Evidence.objects.create(report=report, file=f)
+            Evidence.objects.create(
+                report=report,
+                file=f,
+                latitude=report.submitted_latitude,
+                longitude=report.submitted_longitude,
+            )
 
         # Mark assignment submitted
         assignment.status = InspectionAssignment.Status.SUBMITTED

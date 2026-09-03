@@ -59,8 +59,26 @@ class GeoAndSubmissionTests(TestCase):
         self.assertEqual(reports.count(), 1)
         report = reports.first()
         self.assertTrue(report.location_verified)
+        self.assertTrue(report.is_geofence_verified)
+        self.assertEqual(report.distance_from_site_meters, 0)
         self.assertIsNotNone(report.overall_score)
 
         # Evidence saved
         ev = Evidence.objects.filter(report=report)
         self.assertTrue(ev.exists())
+        self.assertEqual(ev.first().latitude, self.institute.latitude)
+
+    def test_out_of_fence_submission_is_rejected(self):
+        self.client.login(username="officer", password="pass")
+        url = reverse("inspection-report-list")
+        answers = {str(f.id): "yes" for f in InspectionField.objects.filter(template=self.template)}
+        response = self.client.post(url, {
+            "assignment": str(self.assignment.id),
+            "answers": __import__("json").dumps(answers),
+            "submitted_latitude": "13.5",
+            "submitted_longitude": str(self.institute.longitude),
+        })
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("within 200 meters", str(response.json()))
+        self.assertFalse(InspectionReport.objects.exists())

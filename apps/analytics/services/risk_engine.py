@@ -39,6 +39,7 @@ REPEATED_ISSUES_THRESHOLD = 2         # this many recent HIGH alerts -> flagged
 POINTS = {
     "ATTENDANCE_MISMATCH": 25,
     "CCTV_OFFLINE": 20,
+    "CCTV_OFFLINE_OVER_48H": 35,
     "FAILED_INSPECTION": 30,
     "UNUSUAL_ATTENDANCE": 15,
     "REPEATED_ISSUES": 10,
@@ -69,6 +70,14 @@ def _factors_for(features: dict, is_anomaly: bool) -> list:
             "factor": "CCTV_OFFLINE",
             "points": POINTS["CCTV_OFFLINE"],
             "detail": f"All {features['camera_count']} registered camera(s) are offline.",
+        })
+
+    if features["cctv_offline_over_48_count"]:
+        count = features["cctv_offline_over_48_count"]
+        factors.append({
+            "factor": "CCTV_OFFLINE_OVER_48H",
+            "points": POINTS["CCTV_OFFLINE_OVER_48H"],
+            "detail": f"{count} CCTV camera(s) have been offline for more than 48 hours.",
         })
 
     if features["latest_inspection_score"] is not None and features["latest_inspection_score"] < FAILED_INSPECTION_THRESHOLD:
