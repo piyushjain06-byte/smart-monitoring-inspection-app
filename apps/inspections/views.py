@@ -10,12 +10,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.geo import is_within_radius
-from apps.core.permissions import IsOfficial
+from apps.core.permissions import IsOfficial, is_official
 
 from .models import InspectionReport, InspectionAssignment, Evidence, InspectionTemplate, InspectionField
 from .serializers import (
     AutoAssignRequestSerializer,
     InspectionAssignmentSerializer,
+    InspectionFieldSerializer,
     InspectionReportSerializer,
     InspectionReportCreateSerializer,
     InspectionTemplateSerializer,
@@ -23,10 +24,45 @@ from .serializers import (
 from .services import auto_assign, select_surprise_institute
 
 
-class InspectionTemplateViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = InspectionTemplate.objects.filter(is_active=True)
+class InspectionTemplateViewSet(viewsets.ModelViewSet):
+    """
+    Read: any authenticated user — field officers still need this to pick a
+    template when submitting (unchanged behaviour from before this file was
+    updated). They only ever see is_active=True templates.
+    Write (create/update/delete): officials only — this is the frontend
+    equivalent of admin.py's InspectionTemplateAdmin, used by
+    frontend/src/pages/admin/InspectionTemplates.jsx.
+    """
     serializer_class = InspectionTemplateSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = InspectionTemplate.objects.all().prefetch_related("fields")
+        if not is_official(self.request.user):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated()]
+        return [IsOfficial()]
+
+
+class InspectionFieldViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for checklist questions belonging to a template — officials only.
+    Supports ?template=<id> to scope to one template's fields, used by the
+    template builder page to add/edit/reorder/delete questions.
+    """
+    queryset = InspectionField.objects.all()
+    serializer_class = InspectionFieldSerializer
+    permission_classes = [IsOfficial]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        template_id = self.request.query_params.get("template")
+        if template_id:
+            qs = qs.filter(template_id=template_id)
+        return qs
 
 
 class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -41,7 +77,6 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        from apps.core.permissions import is_official
         qs = super().get_queryset()
         user = self.request.user
         if not is_official(user):
@@ -53,7 +88,6 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
         return qs.order_by("-assigned_at")
 
     def _require_official(self, request):
-        from apps.core.permissions import is_official
         if not is_official(request.user):
             return Response({"detail": "Only officials can assign inspections."}, status=status.HTTP_403_FORBIDDEN)
         return None
@@ -140,17 +174,35 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class InspectionReportViewSet(viewsets.GenericViewSet):
-    queryset = InspectionReport.objects.all().select_related("assignment__institute")
+    """
+    Field officers: see only their own submitted reports (unchanged).
+    Officials: can now also list/retrieve any report in scope, filtered by
+    ?institute=<id> — this is what powers the new report viewer page
+    (frontend/src/pages/ReportDetail.jsx), since previously there was no
+    way to see a report's answers/evidence without exporting the PDF.
+    """
+    queryset = InspectionReport.objects.all().select_related(
+        "assignment__institute", "assignment__officer", "assignment__template"
+    ).prefetch_related("assignment__template__fields", "evidence_items")
     serializer_class = InspectionReportSerializer
     permission_classes = [IsAuthenticated]
 
+    def _scoped_queryset(self, request):
+        qs = self.queryset
+        if is_official(request.user):
+            institute_id = request.query_params.get("institute")
+            if institute_id:
+                qs = qs.filter(assignment__institute_id=institute_id)
+            return qs
+        return qs.filter(assignment__officer=request.user)
+
     def list(self, request):
-        qs = self.queryset.filter(assignment__officer=request.user)
+        qs = self._scoped_queryset(request)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        obj = get_object_or_404(self.queryset, pk=pk, assignment__officer=request.user)
+        obj = get_object_or_404(self._scoped_queryset(request), pk=pk)
         serializer = self.serializer_class(obj)
         return Response(serializer.data)
 
@@ -241,8 +293,9 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=["get"], url_path="pdf")
     def pdf(self, request, pk=None):
-        # Export a PDF report using a simple HTML template + WeasyPrint
-        report = get_object_or_404(self.queryset, pk=pk, assignment__officer=request.user)
+        # Export a PDF report using a simple HTML template + WeasyPrint.
+        # Now available to officials too, not just the submitting officer.
+        report = get_object_or_404(self._scoped_queryset(request), pk=pk)
         html = render_to_string("inspections/report.html", {"report": report})
 
         try:

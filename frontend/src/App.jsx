@@ -8,10 +8,14 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Institutes from "./pages/Institutes";
 import InstituteDetail from "./pages/InstituteDetail";
+import ReportDetail from "./pages/ReportDetail";
 import InspectorAssignments from "./pages/InspectorAssignments";
 import SubmitInspection from "./pages/SubmitInspection";
 import RoleRedirect from "./pages/RoleRedirect";
 import Attendance from "./pages/Attendance";
+import Manage from "./pages/admin/Manage";
+import InspectionTemplates from "./pages/admin/InspectionTemplates";
+import TemplateDetail from "./pages/admin/TemplateDetail";
 import NGODashboard from "./pages/ngo/NGODashboard";
 import NGOInstituteDetail from "./pages/ngo/NGOInstituteDetail";
 
@@ -33,7 +37,11 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/institutes" element={<Institutes />} />
             <Route path="/institutes/:id" element={<InstituteDetail />} />
+            <Route path="/institutes/:instituteId/reports/:assignmentId" element={<ReportDetail />} />
             <Route path="/attendance" element={<Attendance />} />
+            <Route path="/templates" element={<InspectionTemplates />} />
+            <Route path="/templates/:id" element={<TemplateDetail />} />
+            <Route path="/manage" element={<Manage />} />
           </Route>
 
           {/* Field inspector portal — Inspection Officer / PMU Team only */}
@@ -46,6 +54,7 @@ export default function App() {
           >
             <Route path="/inspector" element={<InspectorAssignments />} />
             <Route path="/inspector/assignments/:id/submit" element={<SubmitInspection />} />
+            <Route path="/inspector/reports/:assignmentId" element={<ReportDetail />} />
           </Route>
 
           {/* NGO / Institute Admin & Project Incharge portal */}

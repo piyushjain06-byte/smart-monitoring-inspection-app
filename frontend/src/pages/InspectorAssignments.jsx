@@ -57,6 +57,10 @@ export default function InspectorAssignments() {
                   >
                     Submit
                   </Link>
+                ) : a.has_report ? (
+                  <Link to={`/inspector/reports/${a.id}`} className="text-[var(--accent)] underline">
+                    View report
+                  </Link>
                 ) : (
                   <span className="text-[var(--ink-soft)]">Submitted</span>
                 )}

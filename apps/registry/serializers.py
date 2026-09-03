@@ -10,11 +10,15 @@ class SchemeSerializer(serializers.ModelSerializer):
 
 
 class NGOSerializer(serializers.ModelSerializer):
+    # admin_user is now writable (was previously omitted from this
+    # serializer entirely) — the NGO management page needs this to link an
+    # NGO to the User account that should see it in the NGO portal, without
+    # requiring a trip to /admin/.
     class Meta:
         model = NGO
         fields = [
             "id", "name", "registration_number",
-            "contact_person", "contact_phone", "contact_email",
+            "contact_person", "contact_phone", "contact_email", "admin_user",
         ]
 
 
@@ -78,12 +82,16 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class StaffSerializer(serializers.ModelSerializer):
+    institute_name = serializers.CharField(source="institute.name", read_only=True)
+
     class Meta:
         model = Staff
-        fields = ["id", "institute", "full_name", "designation", "phone_number", "linked_user"]
+        fields = ["id", "institute", "institute_name", "full_name", "designation", "phone_number", "linked_user"]
 
 
 class BeneficiarySerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source="project.name", read_only=True)
+
     class Meta:
         model = Beneficiary
-        fields = ["id", "project", "full_name", "phone_number", "linked_user", "enrolled_on"]
+        fields = ["id", "project", "project_name", "full_name", "phone_number", "linked_user", "enrolled_on"]

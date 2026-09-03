@@ -5,6 +5,8 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/institutes", label: "Institutes & Projects" },
   { to: "/attendance", label: "Attendance" },
+  { to: "/templates", label: "Inspection Templates" },
+  { to: "/manage", label: "Manage" },
 ];
 
 export default function Layout() {
