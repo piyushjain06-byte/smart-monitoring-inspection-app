@@ -17,6 +17,19 @@ from apps.registry.models import Institute
 
 
 @shared_task
+def audit_cctv_status():
+    """Re-score active institutes using each camera's latest heartbeat."""
+    from apps.analytics.services.risk_engine import run_risk_engine
+
+    institutes = list(Institute.objects.filter(is_active=True))
+    results = run_risk_engine(institutes=institutes, create_alerts=True)
+    return {
+        "evaluated": len(results),
+        "high_risk_count": sum(1 for result in results if result["severity"] == "HIGH"),
+    }
+
+
+@shared_task
 def run_risk_analysis_task(institute_id: int | None = None, create_alerts: bool = True):
     """
     Celery equivalent of `manage.py run_risk_analysis`. Scores every active

@@ -67,6 +67,7 @@ class AIAlert(models.Model):
     class AlertType(models.TextChoices):
         ATTENDANCE_MISMATCH = "ATTENDANCE_MISMATCH", "Attendance mismatch"
         CCTV_OFFLINE = "CCTV_OFFLINE", "CCTV offline"
+        CCTV_OFFLINE_OVER_48H = "CCTV_OFFLINE_OVER_48H", "CCTV offline over 48 hours"
         FAILED_INSPECTION = "FAILED_INSPECTION", "Failed inspection"
         UNUSUAL_ATTENDANCE = "UNUSUAL_ATTENDANCE", "Unusual attendance pattern"
         REPEATED_ISSUES = "REPEATED_ISSUES", "Repeated issues"
