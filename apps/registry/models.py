@@ -1,10 +1,24 @@
+"""
+FLATTENED ARCHITECTURE (post-audit fix)
+----------------------------------------
+Old (wrong) hierarchy:  Scheme -> NGO -> Institute -> Project
+New (correct) hierarchy: Scheme -> { NGO, Institute, Project } independently
+
+NGO, Institute, and Project each carry their own FK straight to Scheme.
+Institute.ngo and Project.institute have been removed entirely — there is
+no nesting between them anymore. Staff (-> Institute) and Beneficiary
+(-> Project) are unaffected: those are simple "works at" / "enrolled in"
+relations, not part of the Scheme/NGO/Institute/Project hierarchy that was
+wrong, so they're left exactly as they were.
+"""
 from django.conf import settings
 from django.db import models
 from simple_history.models import HistoricalRecords  # Part 5.7 — immutable audit log
 
 
 class Scheme(models.Model):
-    """A DoSJE scheme under which projects/institutes operate."""
+    """A DoSJE scheme. The single top-level parent — NGO, Institute, and
+    Project each reference this directly and independently."""
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -16,7 +30,9 @@ class Scheme(models.Model):
 
 
 class NGO(models.Model):
-    """An NGO partner running one or more projects/institutes under a scheme."""
+    """An NGO partner operating under a Scheme. Does NOT own Institutes —
+    see the module docstring for why that link was removed."""
+    scheme = models.ForeignKey(Scheme, on_delete=models.CASCADE, related_name="ngos")
     name = models.CharField(max_length=255)
     registration_number = models.CharField(max_length=100, unique=True)
     contact_person = models.CharField(max_length=255, blank=True)
@@ -36,17 +52,15 @@ class NGO(models.Model):
 
 class Institute(models.Model):
     """
-    A physical location (project site) run by an NGO under a Scheme.
-    This is the entity that gets CCTV cameras, random VC calls, and inspections.
+    A physical location (project site) operating under a Scheme.
+
+    FLATTENED ARCHITECTURE: Institute references Scheme directly and no
+    longer references NGO. `incharge` (Project Incharge login) stays as-is.
 
     LOCAL DEV MODE: location is plain latitude/longitude floats (no PostGIS
-    needed). Geofence checks use apps.core.geo.is_within_radius(). When we
-    switch to Postgres+PostGIS later, these two fields can be migrated into
-    a single PointField without changing how other apps read the coordinates
-    (just wrap institute.latitude/institute.longitude in a small property).
+    needed). Geofence checks use apps.core.geo.is_within_radius().
     """
     scheme = models.ForeignKey(Scheme, on_delete=models.CASCADE, related_name="institutes")
-    ngo = models.ForeignKey(NGO, on_delete=models.CASCADE, related_name="institutes")
     name = models.CharField(max_length=255)
     address = models.TextField(blank=True)
     state = models.CharField(max_length=100)
@@ -71,11 +85,13 @@ class Institute(models.Model):
 
 class Project(models.Model):
     """
-    A specific activity/program running at an Institute under a Scheme.
-    Kept separate from Institute because one institute can run several projects
-    (e.g. a skill-training institute running both a tailoring and a computer course).
+    A specific activity/program running under a Scheme.
+
+    FLATTENED ARCHITECTURE: Project references Scheme directly and no
+    longer references Institute. A Project is no longer "at" one
+    Institute — it's a Scheme-level activity (mirrors NGO and Institute).
     """
-    institute = models.ForeignKey(Institute, on_delete=models.CASCADE, related_name="projects")
+    scheme = models.ForeignKey(Scheme, on_delete=models.CASCADE, related_name="projects")
     name = models.CharField(max_length=255)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -86,11 +102,12 @@ class Project(models.Model):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.name} @ {self.institute.name}"
+        return f"{self.name} ({self.scheme.name})"
 
 
 class Staff(models.Model):
-    """Institute-level staff (used for attendance analytics — Part 4.9)."""
+    """Institute-level staff (used for attendance analytics — Part 4.9).
+    Unaffected by the flatten — Staff always just "works at" an Institute."""
     institute = models.ForeignKey(Institute, on_delete=models.CASCADE, related_name="staff_members")
     full_name = models.CharField(max_length=255)
     designation = models.CharField(max_length=100, blank=True)
@@ -105,7 +122,8 @@ class Staff(models.Model):
 
 
 class Beneficiary(models.Model):
-    """A beneficiary registered under a Project (used for headcount/attendance checks)."""
+    """A beneficiary registered under a Project. Unaffected by the flatten —
+    Beneficiary always just "enrolls in" a Project."""
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="beneficiaries")
     full_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, blank=True)

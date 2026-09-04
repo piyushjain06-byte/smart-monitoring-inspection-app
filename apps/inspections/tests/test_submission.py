@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from apps.registry.models import Scheme, NGO, Institute, Project
+from apps.registry.models import Scheme, Institute
 from apps.inspections.models import InspectionTemplate, InspectionField, InspectionAssignment, InspectionReport, Evidence
 
 
@@ -17,9 +17,10 @@ class GeoAndSubmissionTests(TestCase):
 
         # Registry objects
         scheme = Scheme.objects.create(name='Test Scheme')
-        ngo = NGO.objects.create(name='Test NGO', registration_number='R1')
+        # FLATTENED ARCHITECTURE: Institute references Scheme only now
+        # (no `ngo=` kwarg — Institute.ngo was removed).
         self.institute = Institute.objects.create(
-            scheme=scheme, ngo=ngo, name='Inst', state='S', district='D', latitude=12.9716, longitude=77.5946
+            scheme=scheme, name='Inst', state='S', district='D', latitude=12.9716, longitude=77.5946
         )
 
         # Template and fields

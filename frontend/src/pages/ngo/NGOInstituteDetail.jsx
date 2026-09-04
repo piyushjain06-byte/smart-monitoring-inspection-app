@@ -13,6 +13,11 @@ const SEVERITY_STYLE = {
  * read-only (no "Assign Inspection" button, no CCTV panel): this portal is
  * for the NGO/incharge to see their own standing, not to act on behalf of
  * the government dashboard.
+ *
+ * FLATTENED ARCHITECTURE: Institute no longer references NGO, so there's
+ * no ngo_name to show here. Projects are no longer tied to an Institute
+ * either (Project -> Scheme now), so the "Projects" panel below fetches
+ * by the institute's Scheme instead of by institute id.
  */
 export default function NGOInstituteDetail() {
   const { id } = useParams();
@@ -28,7 +33,6 @@ export default function NGOInstituteDetail() {
       .get(`/registry/portal/institutes/${id}/`)
       .then(({ data }) => setInstitute(data))
       .catch(() => setNotFound(true));
-    client.get(`/registry/portal/projects/?institute=${id}`).then(({ data }) => setProjects(data));
     client.get(`/registry/portal/staff/?institute=${id}`).then(({ data }) => setStaff(data));
 
     setRiskLoading(true);
@@ -46,6 +50,15 @@ export default function NGOInstituteDetail() {
         severity: institute.latest_risk_severity,
         score: institute.latest_risk_score,
       });
+      // FLATTENED ARCHITECTURE: Project -> Scheme, not Institute — the
+      // closest thing to "projects related to this institute" now is
+      // "projects under the same Scheme".
+      if (institute.scheme) {
+        client
+          .get(`/registry/portal/projects/?scheme=${institute.scheme}`)
+          .then(({ data }) => setProjects(data))
+          .catch(() => setProjects([]));
+      }
     }
   }, [institute]);
 
@@ -74,13 +87,15 @@ export default function NGOInstituteDetail() {
         </Link>
         <h1 className="text-lg font-semibold text-[var(--ink)] mt-2">{institute.name}</h1>
         <p className="text-sm text-[var(--ink-soft)]">
-          {institute.ngo_name} · {institute.scheme_name} · {institute.district}, {institute.state}
+          {institute.scheme_name} · {institute.district}, {institute.state}
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="bg-white border border-[var(--line)]">
-          <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">Projects</div>
+          <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">
+            Projects under this Scheme
+          </div>
           <ul className="divide-y divide-[var(--line)]">
             {projects.length === 0 && (
               <li className="px-4 py-3 text-sm text-[var(--ink-soft)]">No projects recorded yet.</li>

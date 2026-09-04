@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.cctv.models import Camera
-from apps.registry.models import Institute, NGO, Scheme
+from apps.registry.models import Institute, Scheme
 
 User = get_user_model()
 
@@ -13,9 +13,10 @@ User = get_user_model()
 class CameraStatusTests(TestCase):
     def setUp(self):
         scheme = Scheme.objects.create(name="Test Scheme")
-        ngo = NGO.objects.create(name="Test NGO", registration_number="R1")
+        # FLATTENED ARCHITECTURE: Institute references Scheme only now
+        # (no `ngo=` kwarg — Institute.ngo was removed).
         self.institute = Institute.objects.create(
-            scheme=scheme, ngo=ngo, name="Test Institute",
+            scheme=scheme, name="Test Institute",
             state="MH", district="Mumbai", latitude=19.0760, longitude=72.8777,
         )
 
@@ -46,9 +47,8 @@ class CameraStatusTests(TestCase):
 class CameraApiPermissionTests(TestCase):
     def setUp(self):
         scheme = Scheme.objects.create(name="Test Scheme")
-        ngo = NGO.objects.create(name="Test NGO", registration_number="R1")
         self.institute = Institute.objects.create(
-            scheme=scheme, ngo=ngo, name="Test Institute",
+            scheme=scheme, name="Test Institute",
             state="MH", district="Mumbai",
         )
         self.camera = Camera.objects.create(institute=self.institute, name="Main Hall")

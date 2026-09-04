@@ -16,15 +16,15 @@ const STATUS_LABEL = {
   NO_INSPECTION: "No inspection yet",
 };
 
+// FLATTENED ARCHITECTURE: Institute -> Scheme only now (no `ngo` field).
 const BLANK_FORM = {
-  name: "", scheme: "", ngo: "", address: "", state: "", district: "",
+  name: "", scheme: "", address: "", state: "", district: "",
   latitude: "", longitude: "", incharge: "", is_active: true,
 };
 
 export default function Institutes() {
   const [institutes, setInstitutes] = useState([]);
   const [schemes, setSchemes] = useState([]);
-  const [ngos, setNgos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -38,12 +38,10 @@ export default function Institutes() {
     Promise.all([
       client.get("/registry/institutes/"),
       client.get("/registry/schemes/"),
-      client.get("/registry/ngos/"),
     ])
-      .then(([i, s, n]) => {
+      .then(([i, s]) => {
         setInstitutes(i.data);
         setSchemes(s.data);
-        setNgos(n.data);
       })
       .finally(() => setLoading(false));
   }
@@ -129,14 +127,6 @@ export default function Institutes() {
             </select>
           </label>
           <label className="text-sm space-y-1">
-            <span className="text-[var(--ink-soft)]">NGO</span>
-            <select required className="w-full border border-[var(--line)] px-3 py-2 bg-white"
-              value={form.ngo} onChange={(e) => setForm({ ...form, ngo: e.target.value })}>
-              <option value="">--</option>
-              {ngos.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm space-y-1">
             <span className="text-[var(--ink-soft)]">Incharge user ID (optional — Project Incharge portal login)</span>
             <input type="number" className="w-full border border-[var(--line)] px-3 py-2"
               value={form.incharge} onChange={(e) => setForm({ ...form, incharge: e.target.value })} />
@@ -186,7 +176,7 @@ export default function Institutes() {
           <thead>
             <tr className="border-b border-[var(--line)] text-left text-[var(--ink-soft)]">
               <th className="px-4 py-2 font-medium">Institute</th>
-              <th className="px-4 py-2 font-medium">NGO</th>
+              <th className="px-4 py-2 font-medium">Scheme</th>
               <th className="px-4 py-2 font-medium">District</th>
               <th className="px-4 py-2 font-medium">Inspection</th>
               <th className="px-4 py-2 font-medium"></th>
@@ -202,7 +192,7 @@ export default function Institutes() {
             {institutes.map((inst) => (
               <tr key={inst.id} className="border-b border-[var(--line)] last:border-0">
                 <td className="px-4 py-2.5 font-medium">{inst.name}</td>
-                <td className="px-4 py-2.5">{inst.ngo_name}</td>
+                <td className="px-4 py-2.5">{inst.scheme_name}</td>
                 <td className="px-4 py-2.5">{inst.district}, {inst.state}</td>
                 <td className={`px-4 py-2.5 ${STATUS_STYLE[inst.latest_inspection_status] || ""}`}>
                   {STATUS_LABEL[inst.latest_inspection_status] || "—"}

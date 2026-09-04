@@ -31,14 +31,15 @@ class SchemeViewSet(viewsets.ModelViewSet):
 
 
 class NGOViewSet(viewsets.ModelViewSet):
-    queryset = NGO.objects.all()
+    queryset = NGO.objects.select_related("scheme").all()
     serializer_class = NGOSerializer
     permission_classes = [IsOfficial]
 
 
 class InstituteViewSet(viewsets.ModelViewSet):
-    """Powers the dashboard map view (Part 4.5) once we build it."""
-    queryset = Institute.objects.select_related("ngo", "scheme").all()
+    """Powers the dashboard map view (Part 4.5).
+    FLATTENED ARCHITECTURE: Institute -> Scheme only (no NGO link)."""
+    queryset = Institute.objects.select_related("scheme").all()
     serializer_class = InstituteSerializer
     permission_classes = [IsOfficial]
 
@@ -98,16 +99,15 @@ class InstituteViewSet(viewsets.ModelViewSet):
     def export_csv(self, request):
         """
         GET /api/registry/institutes/export-csv/
-        Plain CSV export for offline government reporting (see README's
-        "Good next tasks" list) — same scoping as the normal list endpoint,
-        no new dependencies, just csv.writer + HttpResponse.
+        FLATTENED ARCHITECTURE: no NGO column anymore — Scheme is the only
+        shared parent an Institute has.
         """
         qs = self.get_queryset()
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = "attachment; filename=institutes.csv"
         writer = csv.writer(response)
         writer.writerow([
-            "ID", "Name", "NGO", "Scheme", "State", "District",
+            "ID", "Name", "Scheme", "State", "District",
             "Latitude", "Longitude", "Active",
             "Latest Inspection Status", "Latest Risk Severity", "Latest Risk Score",
         ])
@@ -115,7 +115,7 @@ class InstituteViewSet(viewsets.ModelViewSet):
             latest_assignment = inst.inspection_assignments.order_by("-assigned_at").first()
             latest_snapshot = inst.risk_snapshots.order_by("-computed_at").first()
             writer.writerow([
-                inst.id, inst.name, inst.ngo.name, inst.scheme.name,
+                inst.id, inst.name, inst.scheme.name,
                 inst.state, inst.district, inst.latitude, inst.longitude, inst.is_active,
                 latest_assignment.status if latest_assignment else "NO_INSPECTION",
                 latest_snapshot.severity if latest_snapshot else "",
@@ -125,16 +125,17 @@ class InstituteViewSet(viewsets.ModelViewSet):
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = Project.objects.select_related("institute").all()
+    """FLATTENED ARCHITECTURE: Project -> Scheme only (no Institute link).
+    Supports ?scheme=<id> (previously ?institute=<id>)."""
+    queryset = Project.objects.select_related("scheme").all()
     serializer_class = ProjectSerializer
     permission_classes = [IsOfficial]
 
     def get_queryset(self):
-        """Supports ?institute=<id> so the dashboard can show one institute's projects."""
         qs = super().get_queryset()
-        institute_id = self.request.query_params.get("institute")
-        if institute_id:
-            qs = qs.filter(institute_id=institute_id)
+        scheme_id = self.request.query_params.get("scheme")
+        if scheme_id:
+            qs = qs.filter(scheme_id=scheme_id)
         return qs
 
 
@@ -157,11 +158,13 @@ class DashboardSummaryView(APIView):
     (Part 10 of the plan). Respects the same state/district scoping as
     InstituteViewSet.
 
+    FLATTENED ARCHITECTURE: Projects no longer belong to Institutes, so
+    "active projects" is now scoped by the Scheme(s) covered by the
+    institutes in view, rather than by institute id.
+
     high_risk_institutes / open_ai_alerts come from apps.analytics
     (Phase 9's rule-based risk engine + Isolation Forest anomaly model) —
-    real, computed values from whatever RiskSnapshot/AIAlert rows exist,
-    not a fabricated number. They read 0 until someone runs the risk
-    engine (POST /api/analytics/run/) at least once.
+    real, computed values, not a fabricated number.
     """
     permission_classes = [IsOfficial]
 
@@ -177,7 +180,8 @@ class DashboardSummaryView(APIView):
                 institutes = institutes.filter(state=user.state)
 
         institute_ids = list(institutes.values_list("id", flat=True))
-        projects = Project.objects.filter(institute_id__in=institute_ids)
+        scheme_ids = list(institutes.values_list("scheme_id", flat=True))
+        projects = Project.objects.filter(scheme_id__in=scheme_ids)
         assignments = InspectionAssignment.objects.filter(institute_id__in=institute_ids)
 
         # Latest RiskSnapshot per institute, counted HIGH — mirrors

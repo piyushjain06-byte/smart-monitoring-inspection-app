@@ -18,14 +18,18 @@ User = get_user_model()
 class AutoAssignmentTests(TestCase):
     def setUp(self):
         scheme = Scheme.objects.create(name="Scheme")
-        self.ngo = NGO.objects.create(name="NGO", registration_number="NGO-1")
-        self.other_ngo = NGO.objects.create(name="Other NGO", registration_number="NGO-2")
+        # FLATTENED ARCHITECTURE: NGO hangs directly off Scheme now (needs
+        # `scheme=`), and Institute no longer has an `ngo` field — the
+        # anti-collusion check in apps.inspections.services now keys off
+        # Institute.scheme instead of the removed Institute.ngo.
+        self.ngo = NGO.objects.create(scheme=scheme, name="NGO", registration_number="NGO-1")
+        self.other_ngo = NGO.objects.create(scheme=scheme, name="Other NGO", registration_number="NGO-2")
         self.institute = Institute.objects.create(
-            scheme=scheme, ngo=self.ngo, name="Priority Institute", state="S", district="D",
+            scheme=scheme, name="Priority Institute", state="S", district="D",
             latitude=12.9716, longitude=77.5946,
         )
         self.other_institute = Institute.objects.create(
-            scheme=scheme, ngo=self.ngo, name="Other Institute", state="S", district="D",
+            scheme=scheme, name="Other Institute", state="S", district="D",
             latitude=12.9716, longitude=77.5946,
         )
         self.template = InspectionTemplate.objects.create(name="Surprise checklist")

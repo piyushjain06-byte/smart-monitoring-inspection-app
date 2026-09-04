@@ -54,7 +54,7 @@ def _eligible_officers():
 
 
 def eligible_officers_for_institute(institute, scheduled_at=None, radius_km=None):
-    """Return officers passing proximity, same-day workload, and NGO checks."""
+    """Return officers passing proximity, same-day workload, and anti-collusion checks."""
     if institute.latitude is None or institute.longitude is None:
         return []
     scheduled_at = scheduled_at or (timezone.now() + timedelta(hours=3))
@@ -74,8 +74,13 @@ def eligible_officers_for_institute(institute, scheduled_at=None, radius_km=None
             due_date=scheduled_date,
         ).exists():
             continue
+        # FLATTENED ARCHITECTURE: this used to key off institute__ngo_id
+        # (don't send the same officer back to an institute run by the same
+        # NGO too often). Institute no longer has an `ngo` field — Scheme is
+        # now the closest shared attribute between institutes, so the
+        # anti-collusion window is keyed off Scheme instead.
         if InspectionAssignment.objects.filter(
-            officer=officer, institute__ngo_id=institute.ngo_id,
+            officer=officer, institute__scheme_id=institute.scheme_id,
             assigned_at__gte=cutoff,
         ).exists():
             continue

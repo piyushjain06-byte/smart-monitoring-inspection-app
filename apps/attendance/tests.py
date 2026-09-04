@@ -3,7 +3,7 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.registry.models import Institute, NGO, Scheme, Staff
+from apps.registry.models import Institute, Scheme, Staff
 from .models import AttendanceRecord
 
 User = get_user_model()
@@ -12,10 +12,10 @@ User = get_user_model()
 class AttendanceRecordModelTests(TestCase):
     def setUp(self):
         scheme = Scheme.objects.create(name="Test Scheme")
-        ngo = NGO.objects.create(name="Test NGO", registration_number="R1")
+        # FLATTENED ARCHITECTURE: Institute references Scheme only now
+        # (no `ngo=` kwarg — Institute.ngo was removed).
         self.institute = Institute.objects.create(
             scheme=scheme,
-            ngo=ngo,
             name="Test Institute",
             state="MH",
             district="Mumbai",
