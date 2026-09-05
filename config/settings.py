@@ -56,6 +56,9 @@ LOCAL_APPS = [
     "apps.attendance",
     "apps.core",
     "apps.analytics",
+    # Onboarding: public NGO/Institute self-registration + scheme
+    # application/approval pipeline that now sits in front of apps.registry.
+    "apps.onboarding",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

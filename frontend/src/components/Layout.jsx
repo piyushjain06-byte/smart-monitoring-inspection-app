@@ -9,8 +9,18 @@ const NAV_ITEMS = [
   { to: "/manage", label: "Manage" },
 ];
 
+// Onboarding flow: only the actual Super Admin can approve/reject scheme
+// applications (see apps.core.permissions.is_super_admin) — hide the nav
+// entry for District/State Authority accounts so it doesn't look like a
+// button they can use but can't.
+const SUPER_ADMIN_NAV_ITEMS = [
+  { to: "/scheme-applications", label: "Scheme Applications" },
+];
+
 export default function Layout() {
   const { user, logout } = useAuth();
+  const isSuperAdmin = !!user && (user.is_superuser || user.role === "SUPER_ADMIN");
+  const navItems = isSuperAdmin ? [...NAV_ITEMS, ...SUPER_ADMIN_NAV_ITEMS] : NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex">
@@ -23,7 +33,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-2 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

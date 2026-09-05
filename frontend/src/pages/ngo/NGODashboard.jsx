@@ -24,6 +24,11 @@ const STATUS_LABEL = {
  * exist but had no dedicated frontend. This mirrors Dashboard.jsx + Institutes.jsx
  * for officials, but scoped through /api/registry/portal/* (see
  * apps/registry/portal_views.py) instead of the official-only endpoints.
+ *
+ * Onboarding flow addition: a freshly-registered NGO/Institute admin
+ * (via /register) has zero institutes until a scheme application of
+ * theirs is approved — the empty state below now points them at "Apply
+ * for a Scheme" instead of just saying "nothing here yet".
  */
 export default function NGODashboard() {
   const [summary, setSummary] = useState(null);
@@ -56,11 +61,27 @@ export default function NGODashboard() {
 
   return (
     <div className="p-8 space-y-6">
-      <header>
-        <h1 className="text-lg font-semibold text-[var(--ink)]">My Institutes</h1>
-        <p className="text-sm text-[var(--ink-soft)]">
-          Institutes and projects you administer.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--ink)]">My Institutes</h1>
+          <p className="text-sm text-[var(--ink-soft)]">
+            Institutes and projects you administer.
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Link
+            to="/ngo-portal/applications"
+            className="border border-[var(--ink)] text-[var(--ink)] text-sm font-medium px-4 py-2 hover:bg-[var(--ink)] hover:text-white transition-colors"
+          >
+            My Applications
+          </Link>
+          <Link
+            to="/ngo-portal/apply"
+            className="bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors"
+          >
+            + Apply for a Scheme
+          </Link>
+        </div>
       </header>
 
       {vcAlert && (
@@ -90,40 +111,54 @@ export default function NGODashboard() {
         <StatCard label="Inspections pending" value={summary?.pending_inspections ?? "—"} accent="var(--warn)" />
       </div>
 
-      <div className="bg-white border border-[var(--line)]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--line)] text-left text-[var(--ink-soft)]">
-              <th className="px-4 py-2 font-medium">Institute</th>
-              <th className="px-4 py-2 font-medium">District</th>
-              <th className="px-4 py-2 font-medium">Inspection</th>
-              <th className="px-4 py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td className="px-4 py-4 text-[var(--ink-soft)]" colSpan={4}>Loading…</td></tr>
-            )}
-            {!loading && institutes.length === 0 && (
-              <tr><td className="px-4 py-4 text-[var(--ink-soft)]" colSpan={4}>No institutes assigned to your account yet.</td></tr>
-            )}
-            {institutes.map((inst) => (
-              <tr key={inst.id} className="border-b border-[var(--line)] last:border-0">
-                <td className="px-4 py-2.5 font-medium">{inst.name}</td>
-                <td className="px-4 py-2.5">{inst.district}, {inst.state}</td>
-                <td className={`px-4 py-2.5 ${STATUS_STYLE[inst.latest_inspection_status] || ""}`}>
-                  {STATUS_LABEL[inst.latest_inspection_status] || "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <Link to={`/ngo-portal/institutes/${inst.id}`} className="text-[var(--accent)] underline">
-                    View
-                  </Link>
-                </td>
+      {!loading && institutes.length === 0 ? (
+        <div className="bg-white border border-[var(--line)] p-8 text-center space-y-3">
+          <p className="text-sm text-[var(--ink)] font-medium">Nothing allotted to your account yet.</p>
+          <p className="text-sm text-[var(--ink-soft)] max-w-md mx-auto">
+            Once you apply for a government scheme and the DoSJE HQ Super
+            Admin approves your plan and funding request, your institute
+            and project will appear here automatically.
+          </p>
+          <Link
+            to="/ngo-portal/apply"
+            className="inline-block bg-[var(--ink)] text-white text-sm font-medium px-4 py-2 hover:bg-[var(--accent)] transition-colors"
+          >
+            Apply for a Scheme
+          </Link>
+        </div>
+      ) : (
+        <div className="bg-white border border-[var(--line)]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--line)] text-left text-[var(--ink-soft)]">
+                <th className="px-4 py-2 font-medium">Institute</th>
+                <th className="px-4 py-2 font-medium">District</th>
+                <th className="px-4 py-2 font-medium">Inspection</th>
+                <th className="px-4 py-2 font-medium"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr><td className="px-4 py-4 text-[var(--ink-soft)]" colSpan={4}>Loading…</td></tr>
+              )}
+              {institutes.map((inst) => (
+                <tr key={inst.id} className="border-b border-[var(--line)] last:border-0">
+                  <td className="px-4 py-2.5 font-medium">{inst.name}</td>
+                  <td className="px-4 py-2.5">{inst.district}, {inst.state}</td>
+                  <td className={`px-4 py-2.5 ${STATUS_STYLE[inst.latest_inspection_status] || ""}`}>
+                    {STATUS_LABEL[inst.latest_inspection_status] || "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <Link to={`/ngo-portal/institutes/${inst.id}`} className="text-[var(--accent)] underline">
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

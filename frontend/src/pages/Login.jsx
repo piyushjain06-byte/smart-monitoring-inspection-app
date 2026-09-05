@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { client } from "../api/client";
-import { isOfficial } from "../constants/roles";
+import { isOfficial, isNGOPortalUser } from "../constants/roles";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -21,7 +21,18 @@ export default function Login() {
       // login() only sets tokens; fetch the profile once more here so we can
       // route immediately without waiting on AuthContext's next render.
       const { data: me } = await client.get("/accounts/me/");
-      navigate(isOfficial(me) ? "/" : "/inspector", { replace: true });
+      // NOTE: this used to be a plain isOfficial(me) ? "/" : "/inspector",
+      // which sent NGO_ADMIN/PROJECT_INCHARGE accounts to "/inspector" —
+      // FieldOfficerRoute would then bounce them to "/", OfficialRoute
+      // would bounce them back to "/inspector", forever. Route through all
+      // three portals explicitly, same logic as RoleRedirect.jsx.
+      if (isOfficial(me)) {
+        navigate("/", { replace: true });
+      } else if (isNGOPortalUser(me)) {
+        navigate("/ngo-portal", { replace: true });
+      } else {
+        navigate("/inspector", { replace: true });
+      }
     } catch {
       setError("Username or password is incorrect.");
     } finally {
@@ -86,6 +97,9 @@ export default function Login() {
 
         <p className="text-xs text-[var(--ink-soft)] text-center mt-4">
           Use your Django admin credentials — same login, one platform.
+        </p>
+        <p className="text-xs text-[var(--ink-soft)] text-center mt-2">
+          New NGO or Institute? <Link to="/register" className="text-[var(--accent)] underline">Register here</Link>
         </p>
       </div>
     </div>

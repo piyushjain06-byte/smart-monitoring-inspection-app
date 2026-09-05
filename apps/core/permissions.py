@@ -8,6 +8,13 @@ the NGO/Institute portal — see apps/registry/portal_views.py. These are
 kept as separate helpers rather than folded into is_official()/IsOfficial,
 since an NGO admin or project incharge should NOT see the government
 dashboard's full cross-institute data — they get their own, narrower views.
+
+Extended again for the onboarding/approval flow (PS 26095's own diagram:
+"GOVERNMENT" reviews and approves/rejects NGO/Institute scheme
+applications) with is_super_admin()/IsSuperAdmin — deliberately narrower
+than is_official(), since District/State Authority can see the dashboard
+but do NOT get to approve or reject applications; only the actual Super
+Admin does.
 """
 from rest_framework.permissions import BasePermission
 
@@ -63,6 +70,18 @@ def is_ngo_portal_user(user):
     return getattr(user, "role", None) in NGO_PORTAL_ROLES and not is_official(user)
 
 
+def is_super_admin(user):
+    """
+    True only for the actual government approver in the onboarding flow
+    (PS 26095's diagram: "GOVERNMENT" == DoSJE HQ Super Admin). Deliberately
+    narrower than is_official() — District/State Authority can view the
+    dashboard but do NOT get to approve/reject scheme applications.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or getattr(user, "role", None) == "SUPER_ADMIN"
+
+
 class IsOfficial(BasePermission):
     """Restricts a view to dashboard-side roles (District/State/Super Admin)."""
     message = "This is only available to government officials."
@@ -84,3 +103,11 @@ class IsNGOOrIncharge(BasePermission):
 
     def has_permission(self, request, view):
         return is_ngo_admin(request.user) or is_project_incharge(request.user)
+
+
+class IsSuperAdmin(BasePermission):
+    """Restricts a view/action to the government's Super Admin (see is_super_admin())."""
+    message = "Only the DoSJE HQ Super Admin can approve or reject scheme applications."
+
+    def has_permission(self, request, view):
+        return is_super_admin(request.user)

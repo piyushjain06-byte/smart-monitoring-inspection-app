@@ -29,6 +29,26 @@ export default function NGOPortalLayout() {
           >
             My Institutes
           </NavLink>
+          <NavLink
+            to="/ngo-portal/apply"
+            className={({ isActive }) =>
+              `block px-3 py-2 text-sm rounded-sm transition-colors ${
+                isActive ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            Apply for a Scheme
+          </NavLink>
+          <NavLink
+            to="/ngo-portal/applications"
+            className={({ isActive }) =>
+              `block px-3 py-2 text-sm rounded-sm transition-colors ${
+                isActive ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            My Applications
+          </NavLink>
         </nav>
 
         <div className="px-4 py-4 border-t border-white/10 text-xs text-white/60">

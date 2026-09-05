@@ -13,6 +13,11 @@ urlpatterns = [
     path("api/cctv/", include("apps.cctv.urls")),
     path("api/attendance/", include("apps.attendance.urls")),
     path("api/analytics/", include("apps.analytics.urls")),
+    # Public NGO/Institute self-registration + scheme application/approval
+    # pipeline that sits in front of apps.registry (see ARCHITECTURE_FIX.md
+    # / ONBOARDING.md for how an approved application provisions the real
+    # NGO/Institute + Project rows).
+    path("api/onboarding/", include("apps.onboarding.urls")),
     # JWT — used by the React dashboard + inspector web app (Part 7 of the plan)
     path("api/auth/login/", TokenObtainPairView.as_view(), name="jwt-login"),
     path("api/auth/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
