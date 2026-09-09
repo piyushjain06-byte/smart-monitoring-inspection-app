@@ -43,6 +43,8 @@ POINTS = {
     "FAILED_INSPECTION": 30,
     "UNUSUAL_ATTENDANCE": 15,
     "REPEATED_ISSUES": 10,
+    "INSPECTION_GAP": 10,
+    "HIGH_RISK": 0,
 }
 
 
@@ -69,7 +71,7 @@ def _factors_for(features: dict, is_anomaly: bool) -> list:
         factors.append({
             "factor": "CCTV_OFFLINE",
             "points": POINTS["CCTV_OFFLINE"],
-            "detail": f"All {features['camera_count']} registered camera(s) are offline.",
+            "detail": f"CCTV: all {features['camera_count']} registered camera(s) are offline.",
         })
 
     if features["cctv_offline_over_48_count"]:
@@ -101,6 +103,16 @@ def _factors_for(features: dict, is_anomaly: bool) -> list:
             "detail": f"{features['recent_high_alerts']} high-risk alerts already raised in the last 90 days.",
         })
 
+    if features["inspection_gap_days"] is None or features["inspection_gap_days"] >= features["inspection_gap_threshold_days"]:
+        detail = "No completed inspection history is available."
+        if features["inspection_gap_days"] is not None:
+            detail = f"No inspection has been submitted for {features['inspection_gap_days']} days."
+        factors.append({
+            "factor": "INSPECTION_GAP",
+            "points": POINTS["INSPECTION_GAP"],
+            "detail": detail,
+        })
+
     return factors
 
 
@@ -125,6 +137,7 @@ def compute_risk_for_institute(institute: Institute, anomaly_result: dict | None
         "features": features,
         "is_anomaly": anomaly_result["is_anomaly"],
         "anomaly_score": anomaly_result["anomaly_score"],
+        "surprise_inspection_recommended": _severity_for(score) == "HIGH",
     }
 
 
@@ -187,7 +200,9 @@ def run_risk_engine(institutes=None, create_alerts: bool = True) -> list:
         if create_alerts:
             for factor in breakdown["factors"]:
                 already_open = AIAlert.objects.filter(
-                    institute=institute, alert_type=factor["factor"], status=AIAlert.Status.OPEN,
+                    institute=institute,
+                    alert_type=factor["factor"],
+                    status__in=[AIAlert.Status.OPEN, AIAlert.Status.ACKNOWLEDGED],
                 ).exists()
                 if already_open:
                     continue
@@ -201,6 +216,26 @@ def run_risk_engine(institutes=None, create_alerts: bool = True) -> list:
                 )
                 alerts_created += 1
                 _broadcast_alert_created(alert)
+
+            if breakdown["severity"] == "HIGH":
+                high_risk_exists = AIAlert.objects.filter(
+                    institute=institute,
+                    alert_type=AIAlert.AlertType.HIGH_RISK,
+                    status__in=[AIAlert.Status.OPEN, AIAlert.Status.ACKNOWLEDGED],
+                ).exists()
+                if not high_risk_exists:
+                    reasons = "; ".join(factor["detail"] for factor in breakdown["factors"])
+                    alert = AIAlert.objects.create(
+                        institute=institute,
+                        snapshot=snapshot,
+                        alert_type=AIAlert.AlertType.HIGH_RISK,
+                        description=f"Overall risk score {breakdown['score']}/100. {reasons}",
+                        risk_score=breakdown["score"],
+                        severity=breakdown["severity"],
+                        surprise_inspection_recommended=True,
+                    )
+                    alerts_created += 1
+                    _broadcast_alert_created(alert)
 
         results.append({**breakdown, "snapshot_id": snapshot.id, "alerts_created": alerts_created})
 

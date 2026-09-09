@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Video, X } from "lucide-react";
 import { client, downloadBlob, initiateSurpriseVC } from "../api/client";
 import CctvPanel from "../components/CctvPanel";
+import VCSessionPanel from "../components/VCSessionPanel";
 import RiskTrendChart from "../components/RiskTrendChart";
 import useAlertsSocket from "../hooks/useAlertsSocket";
 
@@ -130,10 +131,19 @@ export default function InstituteDetail() {
     setVcAlert(null);
     try {
       const { data } = await initiateSurpriseVC(id);
-      setVcRoom(data.room_name);
+      await openVC(data.session_id, data.room_name);
     } catch (err) {
       setVcAlert({ error: err.response?.data?.detail || "Could not initiate the surprise video call." });
     }
+  }
+
+  async function openVC(sessionId, fallbackRoom) {
+    if (sessionId) {
+      const { data } = await client.post(`/consultations/sessions/${sessionId}/join/`);
+      setVcRoom(data.room_name);
+      return;
+    }
+    setVcRoom(fallbackRoom);
   }
 
   async function handleDownloadRiskPdf() {
@@ -216,7 +226,7 @@ export default function InstituteDetail() {
       {vcAlert && (
         <div role="alert" className={`flex items-center justify-between gap-4 border px-4 py-3 text-sm ${vcAlert.error ? "border-[var(--danger)] text-[var(--danger)]" : "border-[var(--warn)] bg-[var(--warn)]/10 text-[var(--ink)]"}`}>
           <span>{vcAlert.error || "A surprise video call has been initiated for this institute."}</span>
-          {!vcAlert.error && <button onClick={() => { setVcRoom(vcAlert.room_name); setVcAlert(null); }} className="shrink-0 bg-[var(--ink)] text-white px-3 py-1.5 font-medium">Join Call Now</button>}
+          {!vcAlert.error && <button onClick={() => { openVC(vcAlert.session_id, vcAlert.room_name).then(() => setVcAlert(null)).catch(() => setVcAlert({ error: "You are not an invited participant in this VC." })); }} className="shrink-0 bg-[var(--ink)] text-white px-3 py-1.5 font-medium">Join Call Now</button>}
           <button onClick={() => setVcAlert(null)} aria-label="Dismiss video call notification" className="shrink-0 text-[var(--ink-soft)]"><X size={17} /></button>
         </div>
       )}
@@ -363,6 +373,14 @@ export default function InstituteDetail() {
         )}
 
         <div className="p-4 text-sm space-y-3">
+          {!riskLoading && risk && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-[var(--line)] pb-3">
+              <Metric label="Attendance" value={risk.features.attendance_rate == null ? "No data" : `${Math.round(risk.features.attendance_rate * 100)}%`} />
+              <Metric label="CCTV online" value={risk.features.camera_online_ratio == null ? "No cameras" : `${Math.round(risk.features.camera_online_ratio * 100)}%`} />
+              <Metric label="Inspection score" value={risk.features.latest_inspection_score == null ? "No score" : `${risk.features.latest_inspection_score}/100`} />
+              <Metric label="Inspection frequency" value={`${risk.features.inspection_frequency} total`} />
+            </div>
+          )}
           {riskLoading && <p className="text-[var(--ink-soft)]">Computing…</p>}
           {!riskLoading && risk && risk.factors.length === 0 && (
             <p className="text-[var(--ink-soft)]">No risk factors currently triggered for this institute.</p>
@@ -382,6 +400,11 @@ export default function InstituteDetail() {
               Flagged by the anomaly model (Isolation Forest) as statistically unusual compared to other institutes.
             </p>
           )}
+          {!riskLoading && risk?.surprise_inspection_recommended && (
+            <p className="text-xs text-[var(--danger)] border-t border-[var(--line)] pt-2 font-medium">
+              HIGH RISK: surprise inspection recommended. Existing active assignments are preserved to prevent duplicates.
+            </p>
+          )}
         </div>
       </section>
 
@@ -399,6 +422,16 @@ export default function InstituteDetail() {
       </section>
 
       <CctvPanel instituteId={id} />
+      <VCSessionPanel instituteId={id} />
+    </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="border border-[var(--line)] px-3 py-2">
+      <div className="text-xs text-[var(--ink-soft)]">{label}</div>
+      <div className="font-medium text-[var(--ink)] mt-1">{value}</div>
     </div>
   );
 }

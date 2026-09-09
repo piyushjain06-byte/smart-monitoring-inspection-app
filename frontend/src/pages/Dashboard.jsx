@@ -160,6 +160,9 @@ export default function Dashboard() {
             <div className="p-4 space-y-3 text-sm">
               <Row label="Submitted" value={summary?.submitted_inspections} color="var(--ok)" />
               <Row label="Pending" value={summary?.pending_inspections} color="var(--warn)" />
+              <Row label="Under review" value={summary?.under_review_inspections} color="var(--warn)" />
+              <Row label="Approved" value={summary?.approved_inspections} color="var(--ok)" />
+              <Row label="Completed" value={summary?.completed_inspections} color="var(--ok)" />
               <Row label="Overdue" value={summary?.overdue_inspections} color="var(--danger)" />
             </div>
           </div>
@@ -167,6 +170,26 @@ export default function Dashboard() {
           <AIAlertsPanel alerts={alerts} loading={alertsLoading} live={liveConnected} onChanged={loadData} />
         </div>
       </div>
+
+      <section className="bg-white border border-[var(--line)]">
+        <div className="px-4 py-3 border-b border-[var(--line)] text-sm font-medium">Institute risk overview</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-[var(--line)] text-left text-[var(--ink-soft)]"><th className="px-4 py-2 font-medium">Institute</th><th className="px-4 py-2 font-medium">Risk score</th><th className="px-4 py-2 font-medium">Level</th><th className="px-4 py-2 font-medium">Inspection</th></tr></thead>
+            <tbody>
+              {institutes.filter((institute) => institute.latest_risk_score != null).sort((a, b) => b.latest_risk_score - a.latest_risk_score).slice(0, 8).map((institute) => (
+                <tr key={institute.id} className="border-b border-[var(--line)] last:border-0">
+                  <td className="px-4 py-2.5"><a href={`/institutes/${institute.id}`} className="text-[var(--accent)] underline">{institute.name}</a></td>
+                  <td className="px-4 py-2.5 font-medium">{institute.latest_risk_score}/100</td>
+                  <td className={`px-4 py-2.5 font-medium ${institute.latest_risk_severity === "HIGH" ? "text-[var(--danger)]" : institute.latest_risk_severity === "MEDIUM" ? "text-[var(--warn)]" : "text-[var(--ok)]"}`}>{institute.latest_risk_severity}</td>
+                  <td className="px-4 py-2.5">{institute.latest_inspection_status}</td>
+                </tr>
+              ))}
+              {institutes.every((institute) => institute.latest_risk_score == null) && <tr><td colSpan="4" className="px-4 py-4 text-[var(--ink-soft)]">Run AI Analysis to populate institute risk scores.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

@@ -214,8 +214,17 @@ def _priority_institutes():
         status=InspectionAssignment.Status.OVERDUE,
         institute__is_active=True,
     ).values_list("institute_id", flat=True))
+    active_statuses = {
+        InspectionAssignment.Status.PENDING,
+        InspectionAssignment.Status.ACCEPTED,
+        InspectionAssignment.Status.IN_PROGRESS,
+        InspectionAssignment.Status.SUBMITTED,
+        InspectionAssignment.Status.UNDER_REVIEW,
+        InspectionAssignment.Status.CHANGES_REQUIRED,
+        InspectionAssignment.Status.APPROVED,
+    }
     pending_ids = InspectionAssignment.objects.filter(
-        status=InspectionAssignment.Status.PENDING,
+        status__in=active_statuses,
     ).values("institute_id")
     return Institute.objects.filter(
         is_active=True, id__in=high_risk_ids | overdue_ids,

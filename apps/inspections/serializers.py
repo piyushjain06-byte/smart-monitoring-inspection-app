@@ -96,6 +96,7 @@ class InspectionAssignmentSerializer(serializers.ModelSerializer):
     institute_latitude = serializers.FloatField(source="institute.latitude", read_only=True)
     institute_longitude = serializers.FloatField(source="institute.longitude", read_only=True)
     has_report = serializers.SerializerMethodField()
+    reviewer_name = serializers.SerializerMethodField()
 
     class Meta:
         model = InspectionAssignment
@@ -103,8 +104,8 @@ class InspectionAssignmentSerializer(serializers.ModelSerializer):
             "id", "institute", "institute_name", "institute_district", "institute_state",
             "institute_latitude", "institute_longitude",
             "officer", "officer_name", "template", "template_name",
-            "assigned_at", "due_date", "status", "has_report",
-            "scheduled_at",
+            "assigned_at", "due_date", "status", "has_report", "reviewer", "reviewer_name",
+            "review_comment", "accepted_at", "started_at", "reviewed_at", "completed_at", "scheduled_at",
         ]
 
     def get_officer_name(self, obj):
@@ -112,6 +113,11 @@ class InspectionAssignmentSerializer(serializers.ModelSerializer):
 
     def get_has_report(self, obj):
         return hasattr(obj, "report")
+
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer_id:
+            return None
+        return obj.reviewer.get_full_name() or obj.reviewer.username
 
 
 class AutoAssignRequestSerializer(serializers.Serializer):
@@ -134,8 +140,8 @@ class InspectionReportCreateSerializer(serializers.Serializer):
 
     def validate(self, data):
         assignment = data["assignment"]
-        if getattr(assignment, "status", None) == "SUBMITTED":
-            raise serializers.ValidationError("Assignment already submitted")
+        if assignment.status != InspectionAssignment.Status.IN_PROGRESS:
+            raise serializers.ValidationError("Inspection must be in progress before it can be submitted.")
         latitude = data.get("submitted_latitude")
         longitude = data.get("submitted_longitude")
         institute = assignment.institute

@@ -23,6 +23,7 @@ from apps.registry.models import Beneficiary, Institute, Staff
 
 ATTENDANCE_WINDOW_DAYS = 30
 ALERT_LOOKBACK_DAYS = 90
+INSPECTION_GAP_DAYS = 90
 
 
 def collect_features(institute: Institute) -> dict:
@@ -30,7 +31,9 @@ def collect_features(institute: Institute) -> dict:
     from apps.analytics.models import AIAlert  # local import: analytics -> registry, not the other way
 
     staff_count = Staff.objects.filter(institute=institute).count()
-    beneficiary_count = Beneficiary.objects.filter(project__institute=institute).count()
+    # Projects are Scheme-level in the completed flattened foundation; keep
+    # the risk feature compatible with that ownership model.
+    beneficiary_count = Beneficiary.objects.filter(project__scheme=institute.scheme).count()
 
     # --- Attendance rate (staff PRESENT / total marks in the last N days) ---
     since = timezone.now().date() - timedelta(days=ATTENDANCE_WINDOW_DAYS)
@@ -55,6 +58,11 @@ def collect_features(institute: Institute) -> dict:
         .first()
     )
     latest_inspection_score = latest_report.overall_score if latest_report else None
+    latest_inspection_at = latest_report.submitted_at if latest_report else None
+    inspection_gap_days = (
+        max(0, (timezone.now() - latest_inspection_at).days)
+        if latest_inspection_at else None
+    )
 
     # --- How often this institute gets inspected at all (Part 22's "inspection_frequency") ---
     inspection_frequency = InspectionAssignment.objects.filter(institute=institute).count()
@@ -75,6 +83,9 @@ def collect_features(institute: Institute) -> dict:
         "cctv_offline_over_48_count": sum(hours > 48 for hours in offline_hours),
         "cctv_max_offline_hours": round(max(offline_hours, default=0.0), 1),
         "latest_inspection_score": latest_inspection_score,
+        "latest_inspection_at": latest_inspection_at.isoformat() if latest_inspection_at else None,
+        "inspection_gap_days": inspection_gap_days,
+        "inspection_gap_threshold_days": INSPECTION_GAP_DAYS,
         "inspection_frequency": inspection_frequency,
         "recent_high_alerts": recent_high_alerts,
     }

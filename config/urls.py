@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/cctv/", include("apps.cctv.urls")),
     path("api/attendance/", include("apps.attendance.urls")),
     path("api/analytics/", include("apps.analytics.urls")),
+    path("api/consultations/", include("apps.consultations.urls")),
     # Public NGO/Institute self-registration + scheme application/approval
     # pipeline that sits in front of apps.registry (see ARCHITECTURE_FIX.md
     # / ONBOARDING.md for how an approved application provisions the real

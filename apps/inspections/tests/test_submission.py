@@ -36,6 +36,8 @@ class GeoAndSubmissionTests(TestCase):
     def test_geofence_and_submission(self):
         login = self.client.login(username='officer', password='pass')
         self.assertTrue(login)
+        self.client.post(f'/api/inspections/assignments/{self.assignment.id}/accept/')
+        self.client.post(f'/api/inspections/assignments/{self.assignment.id}/start/')
 
         url = reverse('inspection-report-list')  # router registered with basename 'inspection-report'
 
@@ -71,6 +73,8 @@ class GeoAndSubmissionTests(TestCase):
 
     def test_out_of_fence_submission_is_rejected(self):
         self.client.login(username="officer", password="pass")
+        self.client.post(f'/api/inspections/assignments/{self.assignment.id}/accept/')
+        self.client.post(f'/api/inspections/assignments/{self.assignment.id}/start/')
         url = reverse("inspection-report-list")
         answers = {str(f.id): "yes" for f in InspectionField.objects.filter(template=self.template)}
         response = self.client.post(url, {

@@ -25,6 +25,12 @@ export default function SubmitInspection() {
       .get(`/inspections/assignments/${id}/`)
       .then(({ data }) => {
         setAssignment(data);
+        if (data.status === "CHANGES_REQUIRED") {
+          return client.post(`/inspections/assignments/${id}/resubmit/`).then(({ data: updated }) => {
+            setAssignment(updated);
+            return client.get(`/inspections/templates/${updated.template}/`);
+          });
+        }
         return client.get(`/inspections/templates/${data.template}/`);
       })
       .then(({ data }) => setTemplate(data))

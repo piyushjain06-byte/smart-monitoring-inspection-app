@@ -71,6 +71,8 @@ class AIAlert(models.Model):
         FAILED_INSPECTION = "FAILED_INSPECTION", "Failed inspection"
         UNUSUAL_ATTENDANCE = "UNUSUAL_ATTENDANCE", "Unusual attendance pattern"
         REPEATED_ISSUES = "REPEATED_ISSUES", "Repeated issues"
+        INSPECTION_GAP = "INSPECTION_GAP", "Inspection gap"
+        HIGH_RISK = "HIGH_RISK", "High overall risk"
 
     class Status(models.TextChoices):
         OPEN = "OPEN", "Open"
@@ -88,6 +90,7 @@ class AIAlert(models.Model):
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.OPEN)
     created_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    surprise_inspection_recommended = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-created_at"]

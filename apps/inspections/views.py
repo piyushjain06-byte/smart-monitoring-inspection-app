@@ -1,9 +1,12 @@
 import csv
 
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -98,6 +101,74 @@ class InspectionAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
         if not is_official(request.user):
             return Response({"detail": "Only officials can assign inspections."}, status=status.HTTP_403_FORBIDDEN)
         return None
+
+    def _require_reviewer(self, request):
+        if not is_official(request.user):
+            return Response({"detail": "Only authorized reviewers can perform this action."}, status=status.HTTP_403_FORBIDDEN)
+        return None
+
+    def _transition(self, request, target, *, reviewer=False, comment=""):
+        assignment = self.get_object()
+        if reviewer:
+            denied = self._require_reviewer(request)
+            if denied:
+                return denied
+            if assignment.officer_id == request.user.id:
+                return Response({"detail": "An inspector cannot review their own inspection."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            assignment.transition_to(target, reviewer=request.user if reviewer else None, comment=comment)
+        except ValidationError as exc:
+            return Response({"detail": str(exc.message)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(InspectionAssignmentSerializer(assignment).data)
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        assignment = self.get_object()
+        if assignment.officer_id != request.user.id:
+            return Response({"detail": "Only the assigned inspector can accept this inspection."}, status=status.HTTP_403_FORBIDDEN)
+        return self._transition(request, InspectionAssignment.Status.ACCEPTED)
+
+    @action(detail=True, methods=["post"])
+    def start(self, request, pk=None):
+        assignment = self.get_object()
+        if assignment.officer_id != request.user.id:
+            return Response({"detail": "Only the assigned inspector can start this inspection."}, status=status.HTTP_403_FORBIDDEN)
+        return self._transition(request, InspectionAssignment.Status.IN_PROGRESS)
+
+    @action(detail=True, methods=["post"])
+    def submit(self, request, pk=None):
+        assignment = self.get_object()
+        if assignment.officer_id != request.user.id:
+            return Response({"detail": "Only the assigned inspector can submit this inspection."}, status=status.HTTP_403_FORBIDDEN)
+        if not hasattr(assignment, "report"):
+            return Response({"detail": "Complete the inspection report before submitting."}, status=status.HTTP_400_BAD_REQUEST)
+        return self._transition(request, InspectionAssignment.Status.SUBMITTED)
+
+    @action(detail=True, methods=["post"])
+    def review(self, request, pk=None):
+        return self._transition(request, InspectionAssignment.Status.UNDER_REVIEW, reviewer=True)
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        return self._transition(request, InspectionAssignment.Status.APPROVED, reviewer=True)
+
+    @action(detail=True, methods=["post"])
+    def request_changes(self, request, pk=None):
+        comment = str(request.data.get("comment", "")).strip()
+        if not comment:
+            return Response({"detail": "A review comment is required when requesting changes."}, status=status.HTTP_400_BAD_REQUEST)
+        return self._transition(request, InspectionAssignment.Status.CHANGES_REQUIRED, reviewer=True, comment=comment)
+
+    @action(detail=True, methods=["post"])
+    def resubmit(self, request, pk=None):
+        assignment = self.get_object()
+        if assignment.officer_id != request.user.id:
+            return Response({"detail": "Only the assigned inspector can resubmit this inspection."}, status=status.HTTP_403_FORBIDDEN)
+        return self._transition(request, InspectionAssignment.Status.IN_PROGRESS)
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        return self._transition(request, InspectionAssignment.Status.COMPLETED, reviewer=True)
 
     @action(detail=False, methods=["post"], url_path="auto-assign")
     def auto_assign_action(self, request):
@@ -232,17 +303,16 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
         if assignment.officer != request.user:
             return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Create report
-        report = InspectionReport.objects.create(
-            assignment=assignment,
-            submitted_latitude=data.get("submitted_latitude"),
-            submitted_longitude=data.get("submitted_longitude"),
-            distance_from_site_meters=data["distance_from_site_meters"],
-            is_geofence_verified=True,
-            location_verified=True,
-            answers=data.get("answers", {}),
-            notes=data.get("notes", ""),
-        )
+        with transaction.atomic():
+            report, _ = InspectionReport.objects.get_or_create(assignment=assignment)
+            report.submitted_latitude = data.get("submitted_latitude")
+            report.submitted_longitude = data.get("submitted_longitude")
+            report.distance_from_site_meters = data["distance_from_site_meters"]
+            report.is_geofence_verified = True
+            report.location_verified = True
+            report.answers = data.get("answers", {})
+            report.notes = data.get("notes", "")
+            report.submitted_at = timezone.now()
 
         # Compute overall score (simple heuristic)
         try:
@@ -272,7 +342,7 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
 
         report.save()
 
-        # Save evidence files
+        # Evidence is retained across review cycles; new files are added on resubmit.
         files = request.FILES.getlist("evidence")
         for f in files:
             Evidence.objects.create(
@@ -282,9 +352,7 @@ class InspectionReportViewSet(viewsets.GenericViewSet):
                 longitude=report.submitted_longitude,
             )
 
-        # Mark assignment submitted
-        assignment.status = InspectionAssignment.Status.SUBMITTED
-        assignment.save()
+        assignment.transition_to(InspectionAssignment.Status.SUBMITTED)
 
         out = self.serializer_class(report)
         return Response(out.data, status=status.HTTP_201_CREATED)

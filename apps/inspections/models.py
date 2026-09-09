@@ -73,8 +73,25 @@ class InspectionAssignment(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        IN_PROGRESS = "IN_PROGRESS", "In progress"
         SUBMITTED = "SUBMITTED", "Submitted"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under review"
+        APPROVED = "APPROVED", "Approved"
+        CHANGES_REQUIRED = "CHANGES_REQUIRED", "Changes required"
+        COMPLETED = "COMPLETED", "Completed"
         OVERDUE = "OVERDUE", "Overdue"
+
+    VALID_TRANSITIONS = {
+        Status.PENDING: {Status.ACCEPTED},
+        Status.OVERDUE: {Status.ACCEPTED},
+        Status.ACCEPTED: {Status.IN_PROGRESS},
+        Status.IN_PROGRESS: {Status.SUBMITTED},
+        Status.SUBMITTED: {Status.UNDER_REVIEW},
+        Status.UNDER_REVIEW: {Status.APPROVED, Status.CHANGES_REQUIRED},
+        Status.CHANGES_REQUIRED: {Status.IN_PROGRESS},
+        Status.APPROVED: {Status.COMPLETED},
+    }
 
     officer = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="inspection_assignments",
@@ -86,6 +103,15 @@ class InspectionAssignment(models.Model):
     scheduled_at = models.DateTimeField(null=True, blank=True)
     due_date = models.DateField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="reviewed_inspections",
+    )
+    review_comment = models.TextField(blank=True)
 
     # Audit fields — populated by the Phase 3 random-assignment engine.
     # Left blank for manually-created assignments.
@@ -93,6 +119,30 @@ class InspectionAssignment(models.Model):
     weight_snapshot = models.JSONField(null=True, blank=True)
 
     history = HistoricalRecords()
+
+    def transition_to(self, new_status, *, now=None, reviewer=None, comment=""):
+        """Apply one permitted lifecycle transition and its audit metadata."""
+        from django.core.exceptions import ValidationError
+        from django.utils import timezone
+
+        if new_status not in self.VALID_TRANSITIONS.get(self.status, set()):
+            raise ValidationError(f"Cannot transition inspection from {self.status} to {new_status}.")
+        now = now or timezone.now()
+        self.status = new_status
+        if new_status == self.Status.ACCEPTED:
+            self.accepted_at = now
+        elif new_status == self.Status.IN_PROGRESS:
+            self.started_at = self.started_at or now
+        elif new_status == self.Status.UNDER_REVIEW:
+            self.reviewer = reviewer
+            self.reviewed_at = now
+        elif new_status in {self.Status.APPROVED, self.Status.CHANGES_REQUIRED}:
+            self.reviewer = reviewer
+            self.reviewed_at = now
+            self.review_comment = comment
+        elif new_status == self.Status.COMPLETED:
+            self.completed_at = now
+        self.save()
 
     def __str__(self):
         return f"{self.institute.name} -> {self.officer} (due {self.due_date})"

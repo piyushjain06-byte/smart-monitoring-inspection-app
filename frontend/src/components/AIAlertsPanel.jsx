@@ -55,6 +55,9 @@ export default function AIAlertsPanel({ alerts, loading, live, onChanged }) {
                 <span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: SEVERITY_COLOR[alert.severity] }} />
                 <span className="font-medium">{alert.alert_type_display}</span>
                 <div className="text-xs text-[var(--ink-soft)] mt-0.5 ml-4">{alert.description}</div>
+                {alert.surprise_inspection_recommended && (
+                  <div className="text-xs text-[var(--danger)] mt-1 ml-4 font-medium">Surprise inspection recommended</div>
+                )}
               </div>
               <Link to={`/institutes/${alert.institute}`} className="shrink-0 text-xs text-[var(--accent)] underline">
                 {alert.institute_name}

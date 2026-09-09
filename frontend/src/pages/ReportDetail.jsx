@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { client } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { isOfficial } from "../constants/roles";
+import VCSessionPanel from "../components/VCSessionPanel";
 
 // Works under two routes:
 //   /institutes/:instituteId/reports/:assignmentId   (officials)
@@ -15,17 +16,30 @@ export default function ReportDetail() {
   const { user } = useAuth();
   const [report, setReport] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  const [assignment, setAssignment] = useState(null);
+  const [reviewComment, setReviewComment] = useState("");
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
-    client
-      .get("/inspections/reports/")
-      .then(({ data }) => {
+    Promise.all([client.get("/inspections/reports/"), client.get(`/inspections/assignments/${assignmentId}/`)]).then(([reportResponse, assignmentResponse]) => {
+        const data = reportResponse.data;
         const match = data.find((r) => String(r.assignment) === String(assignmentId));
         if (match) setReport(match);
         else setNotFound(true);
+        setAssignment(assignmentResponse.data);
       })
       .catch(() => setNotFound(true));
   }, [assignmentId]);
+
+  async function reviewAction(action, body = {}) {
+    setActionError("");
+    try {
+      const { data } = await client.post(`/inspections/assignments/${assignmentId}/${action}/`, body);
+      setAssignment(data);
+    } catch (err) {
+      setActionError(err.response?.data?.detail || "Could not update the inspection.");
+    }
+  }
 
   async function handleDownloadPdf() {
     if (!report) return;
@@ -91,6 +105,31 @@ export default function ReportDetail() {
         <span className="font-semibold text-[var(--ink)]">{report.overall_score ?? "—"}/100</span>
       </div>
 
+      {assignment?.review_comment && (
+        <div className="bg-white border border-[var(--danger)] p-4 text-sm">
+          <div className="font-medium text-[var(--danger)]">Reviewer comments</div>
+          <p className="mt-1 text-[var(--ink-soft)]">{assignment.review_comment}</p>
+        </div>
+      )}
+      {official && assignment?.status === "SUBMITTED" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => reviewAction("review")} className="border border-[var(--ink)] px-3 py-2 text-sm">Review inspection</button>
+        </div>
+      )}
+      {official && assignment?.status === "UNDER_REVIEW" && assignment?.officer !== user?.id && (
+        <div className="space-y-2">
+          <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="Required only when requesting changes" className="w-full border border-[var(--line)] px-3 py-2 text-sm" rows={3} />
+          <div className="flex gap-2">
+            <button onClick={() => reviewAction("approve")} className="bg-[var(--ok)] text-white px-3 py-2 text-sm">Approve</button>
+            <button onClick={() => reviewAction("request_changes", { comment: reviewComment })} disabled={!reviewComment.trim()} className="border border-[var(--danger)] text-[var(--danger)] px-3 py-2 text-sm disabled:opacity-50">Request changes</button>
+          </div>
+        </div>
+      )}
+      {official && assignment?.status === "APPROVED" && (
+        <button onClick={() => reviewAction("complete")} className="bg-[var(--ok)] text-white px-3 py-2 text-sm">Complete inspection</button>
+      )}
+      {actionError && <p className="text-sm text-[var(--danger)]">{actionError}</p>}
+
       <div className="bg-white border border-[var(--line)] p-4 flex items-center justify-between text-sm">
         <span className="text-[var(--ink-soft)]">Location verified (within geofence)</span>
         <span className={report.location_verified ? "text-[var(--ok)] font-medium" : "text-[var(--danger)] font-medium"}>
@@ -112,6 +151,7 @@ export default function ReportDetail() {
           ))}
         </ul>
       </section>
+      <VCSessionPanel instituteId={report.institute} inspectionId={assignmentId} />
 
       {report.notes && (
         <section className="bg-white border border-[var(--line)] p-4">

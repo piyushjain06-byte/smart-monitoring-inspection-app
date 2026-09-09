@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { client } from "../../api/client";
+import VCSessionPanel from "../../components/VCSessionPanel";
 
 const SEVERITY_STYLE = {
   LOW: "text-[var(--ok)]",
@@ -142,6 +143,7 @@ export default function NGOInstituteDetail() {
           {!riskLoading && risk?.severity && "Contact your district authority for the full risk factor breakdown."}
         </div>
       </section>
+      <VCSessionPanel instituteId={id} />
     </div>
   );
 }

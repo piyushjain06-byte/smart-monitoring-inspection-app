@@ -88,7 +88,15 @@ export default function NGODashboard() {
         <div role="alert" className="flex items-center justify-between gap-4 border border-[var(--danger)] bg-[var(--danger)]/10 px-4 py-3 text-sm">
           <span className="flex items-center gap-2 font-medium"><Video size={17} aria-hidden="true" /> Surprise video call requested for {vcAlert.institute_name}.</span>
           <span className="flex items-center gap-3 shrink-0">
-            <button onClick={() => { setVcRoom(vcAlert.room_name); setVcAlert(null); }} className="bg-[var(--danger)] text-white px-3 py-1.5 font-medium">Join Call Now</button>
+            <button onClick={async () => {
+              try {
+                const { data } = await client.post(`/consultations/sessions/${vcAlert.session_id}/join/`);
+                setVcRoom(data.room_name);
+                setVcAlert(null);
+              } catch {
+                setVcAlert({ error: "You are not an invited participant in this VC." });
+              }
+            }} className="bg-[var(--danger)] text-white px-3 py-1.5 font-medium">Join Call Now</button>
             <button onClick={() => setVcAlert(null)} aria-label="Dismiss video call notification"><X size={17} /></button>
           </span>
         </div>
@@ -109,6 +117,8 @@ export default function NGODashboard() {
         <StatCard label="Active projects" value={summary?.active_projects ?? "—"} />
         <StatCard label="High risk (AI)" value={summary?.high_risk_institutes ?? "—"} accent="var(--danger)" />
         <StatCard label="Inspections pending" value={summary?.pending_inspections ?? "—"} accent="var(--warn)" />
+        <StatCard label="Under review" value={summary?.under_review_inspections ?? "—"} accent="var(--warn)" />
+        <StatCard label="Completed" value={summary?.completed_inspections ?? "—"} accent="var(--ok)" />
       </div>
 
       {!loading && institutes.length === 0 ? (

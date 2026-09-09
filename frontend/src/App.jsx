@@ -7,6 +7,7 @@ import NGOPortalLayout from "./components/NGOPortalLayout";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import AIAlerts from "./pages/AIAlerts";
 import Institutes from "./pages/Institutes";
 import InstituteDetail from "./pages/InstituteDetail";
 import ReportDetail from "./pages/ReportDetail";
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/institutes/:id" element={<InstituteDetail />} />
             <Route path="/institutes/:instituteId/reports/:assignmentId" element={<ReportDetail />} />
             <Route path="/attendance" element={<Attendance />} />
+            <Route path="/alerts" element={<AIAlerts />} />
             <Route path="/templates" element={<InspectionTemplates />} />
             <Route path="/templates/:id" element={<TemplateDetail />} />
             <Route path="/manage" element={<Manage />} />

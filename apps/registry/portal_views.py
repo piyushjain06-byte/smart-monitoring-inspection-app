@@ -157,9 +157,12 @@ class PortalDashboardSummaryView(APIView):
             "active_institutes": institutes.filter(is_active=True).count(),
             "total_projects": projects.count(),
             "active_projects": projects.filter(is_active=True).count(),
-            "pending_inspections": assignments.filter(status=InspectionAssignment.Status.PENDING).count(),
+            "pending_inspections": assignments.filter(status__in=[InspectionAssignment.Status.PENDING, InspectionAssignment.Status.ACCEPTED, InspectionAssignment.Status.IN_PROGRESS, InspectionAssignment.Status.CHANGES_REQUIRED]).count(),
             "overdue_inspections": assignments.filter(status=InspectionAssignment.Status.OVERDUE).count(),
             "submitted_inspections": assignments.filter(status=InspectionAssignment.Status.SUBMITTED).count(),
+            "under_review_inspections": assignments.filter(status=InspectionAssignment.Status.UNDER_REVIEW).count(),
+            "approved_inspections": assignments.filter(status=InspectionAssignment.Status.APPROVED).count(),
+            "completed_inspections": assignments.filter(status=InspectionAssignment.Status.COMPLETED).count(),
             "high_risk_institutes": high_risk_institutes,
             "open_ai_alerts": open_ai_alerts,
         })

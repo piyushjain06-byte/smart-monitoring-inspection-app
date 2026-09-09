@@ -56,6 +56,7 @@ LOCAL_APPS = [
     "apps.attendance",
     "apps.core",
     "apps.analytics",
+    "apps.consultations",
     # Onboarding: public NGO/Institute self-registration + scheme
     # application/approval pipeline that now sits in front of apps.registry.
     "apps.onboarding",

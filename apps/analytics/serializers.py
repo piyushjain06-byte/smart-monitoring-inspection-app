@@ -23,6 +23,7 @@ class AIAlertSerializer(serializers.ModelSerializer):
         fields = [
             "id", "institute", "institute_name", "alert_type", "alert_type_display",
             "description", "risk_score", "severity", "status", "created_at", "resolved_at",
+            "surprise_inspection_recommended",
         ]
         read_only_fields = ["created_at", "resolved_at"]
 
