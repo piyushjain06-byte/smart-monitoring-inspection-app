@@ -37,6 +37,82 @@ class NGOViewSet(viewsets.ModelViewSet):
     serializer_class = NGOSerializer
     permission_classes = [IsOfficial]
 
+    @action(detail=True, methods=["get"], url_path="monitoring")
+    def monitoring(self, request, pk=None):
+        """
+        GET /api/registry/ngos/<id>/monitoring/
+
+        FLATTENED ARCHITECTURE: NGO doesn't own Institutes/Projects directly
+        anymore (see ARCHITECTURE_FIX.md) — Scheme is the only thing they
+        share. This surfaces every Institute/Project under the same Scheme
+        this NGO belongs to, mirroring the exact scoping rule already used
+        for the NGO_ADMIN portal (apps.registry.portal_views.
+        portal_scoped_institutes/_projects).
+
+        Beyond the stat cards, this now also aggregates the SAME two things
+        an individual Institute detail page shows — inspection history
+        (InspectionAssignment) and CCTV cameras — across every institute in
+        scope, so viewing an NGO gives the same monitoring depth as viewing
+        one institute, just rolled up. Kept read-only/aggregate-only here on
+        purpose: actions like "Assign Inspection", "+ Add camera", or the
+        live MJPEG stream stay on the single-institute page
+        (InstituteDetail.jsx) where they're unambiguous about which site
+        they apply to.
+        """
+        from apps.analytics.models import AIAlert, RiskSnapshot
+        from apps.cctv.models import Camera
+        from apps.cctv.serializers import CameraSerializer
+        from apps.inspections.serializers import InspectionAssignmentSerializer
+
+        ngo = self.get_object()
+        institutes = Institute.objects.filter(scheme=ngo.scheme).select_related("scheme")
+        institute_ids = list(institutes.values_list("id", flat=True))
+        projects = Project.objects.filter(scheme=ngo.scheme)
+        assignments = InspectionAssignment.objects.filter(
+            institute_id__in=institute_ids
+        ).select_related("officer", "institute", "template")
+        cameras = Camera.objects.filter(institute_id__in=institute_ids).select_related("institute")
+
+        latest_per_institute = (
+            RiskSnapshot.objects.filter(institute_id__in=institute_ids)
+            .values("institute").annotate(latest=Max("computed_at")).values_list("latest", flat=True)
+        )
+        high_risk_institutes = RiskSnapshot.objects.filter(
+            institute_id__in=institute_ids, computed_at__in=latest_per_institute, severity="HIGH",
+        ).count()
+        open_ai_alerts = AIAlert.objects.filter(
+            institute_id__in=institute_ids, status=AIAlert.Status.OPEN,
+        ).count()
+
+        return Response({
+            "ngo": NGOSerializer(ngo).data,
+            "summary": {
+                "total_institutes": institutes.count(),
+                "active_institutes": institutes.filter(is_active=True).count(),
+                "total_projects": projects.count(),
+                "active_projects": projects.filter(is_active=True).count(),
+                "pending_inspections": assignments.filter(status__in=[
+                    InspectionAssignment.Status.PENDING, InspectionAssignment.Status.ACCEPTED,
+                    InspectionAssignment.Status.IN_PROGRESS, InspectionAssignment.Status.CHANGES_REQUIRED,
+                ]).count(),
+                "overdue_inspections": assignments.filter(status=InspectionAssignment.Status.OVERDUE).count(),
+                "submitted_inspections": assignments.filter(status=InspectionAssignment.Status.SUBMITTED).count(),
+                "under_review_inspections": assignments.filter(status=InspectionAssignment.Status.UNDER_REVIEW).count(),
+                "approved_inspections": assignments.filter(status=InspectionAssignment.Status.APPROVED).count(),
+                "completed_inspections": assignments.filter(status=InspectionAssignment.Status.COMPLETED).count(),
+                "high_risk_institutes": high_risk_institutes,
+                "open_ai_alerts": open_ai_alerts,
+                "total_cameras": cameras.count(),
+                "cameras_online": sum(1 for c in cameras if c.status == "ONLINE"),
+            },
+            "institutes": InstituteSerializer(institutes, many=True).data,
+            "projects": ProjectSerializer(projects, many=True).data,
+            "assignments": InspectionAssignmentSerializer(
+                assignments.order_by("-assigned_at"), many=True
+            ).data,
+            "cameras": CameraSerializer(cameras.order_by("institute_id", "name"), many=True).data,
+        })
+
 
 class InstituteViewSet(viewsets.ModelViewSet):
     """Powers the dashboard map view (Part 4.5).

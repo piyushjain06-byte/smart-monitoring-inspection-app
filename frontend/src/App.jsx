@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import AIAlerts from "./pages/AIAlerts";
 import Institutes from "./pages/Institutes";
 import InstituteDetail from "./pages/InstituteDetail";
+import NGOs from "./pages/NGOs";
+import NGODetail from "./pages/NGODetail";
 import ReportDetail from "./pages/ReportDetail";
 import InspectorAssignments from "./pages/InspectorAssignments";
 import SubmitInspection from "./pages/SubmitInspection";
@@ -45,6 +47,8 @@ export default function App() {
             <Route path="/institutes" element={<Institutes />} />
             <Route path="/institutes/:id" element={<InstituteDetail />} />
             <Route path="/institutes/:instituteId/reports/:assignmentId" element={<ReportDetail />} />
+            <Route path="/ngos" element={<NGOs />} />
+            <Route path="/ngos/:id" element={<NGODetail />} />
             <Route path="/attendance" element={<Attendance />} />
             <Route path="/alerts" element={<AIAlerts />} />
             <Route path="/templates" element={<InspectionTemplates />} />

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ClipboardCheck, LoaderCircle, RefreshCw } from "lucide-react";
 import { autoAssignInspections, client } from "../../api/client";
 
-const TABS = ["Schemes", "NGOs", "Projects", "Staff", "Beneficiaries", "Inspections"];
+const TABS = ["Schemes", "Projects", "Staff", "Beneficiaries", "Inspections"];
 
 // ---------------------------------------------------------------------------
 // Generic list+form CRUD block. Each tab below configures this once instead
@@ -189,49 +189,11 @@ function SchemesTab() {
   );
 }
 
-// FLATTENED ARCHITECTURE: NGO -> Scheme directly now (no Institute
-// ownership) — the create/edit form gets a Scheme select.
-function NGOsTab() {
-  const [schemes, setSchemes] = useState([]);
-  useEffect(() => {
-    client.get("/registry/schemes/").then(({ data }) => setSchemes(data));
-  }, []);
-
-  return (
-    <CrudPanel
-      endpoint="/registry/ngos/"
-      columns={[
-        { key: "name", label: "Name" },
-        { key: "scheme_name", label: "Scheme" },
-        { key: "registration_number", label: "Reg. No." },
-        { key: "contact_person", label: "Contact" },
-        { key: "admin_user", label: "Admin user ID" },
-      ]}
-      formFields={[
-        { name: "name", label: "Name", required: true },
-        {
-          name: "scheme", label: "Scheme", type: "select", required: true,
-          options: schemes.map((s) => ({ value: s.id, label: s.name })),
-        },
-        { name: "registration_number", label: "Registration number", required: true },
-        { name: "contact_person", label: "Contact person" },
-        { name: "contact_phone", label: "Contact phone" },
-        { name: "contact_email", label: "Contact email", type: "email" },
-        {
-          name: "admin_user", label: "Admin user ID (NGO portal login — check /admin/ Users for the ID)",
-          type: "number",
-        },
-      ]}
-      emptyLabel="No NGOs yet."
-      rowLabel={(r) => r.name}
-    />
-  );
-}
-
 // FLATTENED ARCHITECTURE (new tab): Projects used to be managed from inside
 // an Institute's detail page (Project -> Institute). Now that Project ->
 // Scheme directly, they're a first-class Manage tab of their own, same
-// pattern as NGOs.
+// pattern as NGOs used to be (NGOs now have their own top-level page —
+// see /ngos and /ngos/:id — instead of living here).
 function ProjectsTab() {
   const [schemes, setSchemes] = useState([]);
   useEffect(() => {
@@ -447,7 +409,7 @@ export default function Manage() {
       <header>
         <h1 className="text-lg font-semibold text-[var(--ink)]">Manage</h1>
         <p className="text-sm text-[var(--ink-soft)]">
-          Schemes, NGOs, projects, staff, and beneficiaries — everything that used to require /admin/.
+          Schemes, projects, staff, and beneficiaries — everything that used to require /admin/. NGOs now have their own page under the "NGOs" sidebar link.
         </p>
       </header>
 
@@ -466,7 +428,6 @@ export default function Manage() {
       </div>
 
       {tab === "Schemes" && <SchemesTab />}
-      {tab === "NGOs" && <NGOsTab />}
       {tab === "Projects" && <ProjectsTab />}
       {tab === "Staff" && <StaffTab />}
       {tab === "Beneficiaries" && <BeneficiariesTab />}
